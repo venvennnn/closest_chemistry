@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+
+# Env and secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Storage and runtime
+backend/.local_storage/
+backend/*.db
+*.sqlite3
+data/
+tmp/
+*.log
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Test / coverage
+.coverage
+htmlcov/
+coverage/
+
+# Python
+.python-version
+dist/
+build/
