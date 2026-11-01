@@ -10,9 +10,7 @@ sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ENVIRONMENT", "test")
-os.environ.setdefault("SUPABASE_JWT_SECRET", "test-secret-do-not-use-in-production")
-os.environ.setdefault("SUPABASE_JWT_AUDIENCE", "authenticated")
-os.environ.setdefault("JWT_ISSUER", "http://localhost/auth/v1")
+os.environ.setdefault("AUTH_MODE", "single")
 os.environ.setdefault("DATABASE_SSL_REQUIRE", "false")
 os.environ.setdefault("LOCAL_STORAGE_DIR", str(ROOT / ".local_storage_test"))
 

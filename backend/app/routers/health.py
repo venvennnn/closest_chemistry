@@ -22,5 +22,6 @@ def readyz(session: Session = Depends(get_db)) -> dict:
         "database": True,
         "gemini_configured": not bool(settings.missing_gemini()),
         "youcam_configured": not bool(settings.missing_youcam()),
-        "auth_configured": bool(settings.supabase_url or settings.supabase_jwt_secret),
+        "auth_configured": True,
+        "auth_mode": settings.auth_mode,
     }

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
-import jwt
 from fastapi import Depends, HTTPException, Request
-from jwt import PyJWKClient
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
+
+SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+SINGLE_OWNER_ID = "local"
 
 
 @dataclass
@@ -19,76 +21,29 @@ class Principal:
     claims: dict[str, Any]
 
 
-_jwks_client: PyJWKClient | None = None
-
-
-def _jwks() -> PyJWKClient | None:
-    global _jwks_client
-    settings = get_settings()
-    if not settings.supabase_url:
+def _safe_session(value: str | None) -> str | None:
+    if not value:
         return None
-    if _jwks_client is None:
-        url = f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
-        _jwks_client = PyJWKClient(url)
-    return _jwks_client
-
-
-def decode_token(token: str) -> dict[str, Any]:
-    settings = get_settings()
-    options = {"require": ["exp", "sub"], "verify_aud": True, "verify_iss": bool(settings.resolved_jwt_issuer)}
-    issuer = settings.resolved_jwt_issuer or None
-    audience = settings.supabase_jwt_audience
-    try:
-        client = _jwks()
-        if client is not None:
-            signing_key = client.get_signing_key_from_jwt(token)
-            return jwt.decode(
-                token,
-                signing_key.key,
-                algorithms=["ES256", "RS256", "HS256"],
-                audience=audience,
-                issuer=issuer,
-                options=options,
-            )
-        if not settings.supabase_jwt_secret:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    "Auth is not configured. Set SUPABASE_URL (JWKS) or SUPABASE_JWT_SECRET, "
-                    "plus issuer and audience. The API will not trust browser-supplied owner IDs."
-                ),
-            )
-        return jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience=audience,
-            issuer=issuer,
-            options=options,
-        )
-    except HTTPException:
-        raise
-    except jwt.ExpiredSignatureError as exc:
-        raise HTTPException(status_code=401, detail="Token expired.") from exc
-    except jwt.InvalidAudienceError as exc:
-        raise HTTPException(status_code=401, detail="Token audience is invalid.") from exc
-    except jwt.InvalidIssuerError as exc:
-        raise HTTPException(status_code=401, detail="Token issuer is invalid.") from exc
-    except jwt.InvalidSignatureError as exc:
-        raise HTTPException(status_code=401, detail="Token signature is invalid.") from exc
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail="Token could not be verified.") from exc
+    trimmed = value.strip()
+    if SESSION_RE.fullmatch(trimmed):
+        return trimmed
+    raise HTTPException(status_code=400, detail="Session id is invalid.")
 
 
 def get_principal(request: Request) -> Principal:
-    header = request.headers.get("authorization") or ""
-    if not header.lower().startswith("bearer "):
-        raise HTTPException(status_code=401, detail="Missing bearer token.")
-    claims = decode_token(header.split(" ", 1)[1].strip())
-    owner_id = claims.get("sub")
-    if not owner_id:
-        raise HTTPException(status_code=401, detail="Token is missing sub.")
-    return Principal(owner_id=str(owner_id), email=claims.get("email"), claims=claims)
+    """Anonymous single-user session. No sign-in.
+
+    Default production mode is one shared closet (`local`). Tests may send
+    `X-Session-Id` so isolation checks still run.
+    """
+    settings = get_settings()
+    header = _safe_session(request.headers.get("x-session-id"))
+    cookie = _safe_session(request.cookies.get("cc_session"))
+    allow_override = settings.auth_mode == "session" or settings.environment == "test"
+    if allow_override and (header or cookie):
+        owner_id = header or cookie or settings.single_owner_id
+        return Principal(owner_id=owner_id, email=None, claims={"mode": "session"})
+    return Principal(owner_id=settings.single_owner_id, email=None, claims={"mode": "single"})
 
 
 def current_principal(principal: Principal = Depends(get_principal)) -> Principal:

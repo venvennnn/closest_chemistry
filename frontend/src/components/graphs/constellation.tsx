@@ -10,7 +10,6 @@ type Props = {
   edges: Array<{ source: string; target: string; qualified_outfit_ids: string[] }>;
   selectedId?: string | null;
   onSelect: (id: string) => void;
-  token: string;
 };
 
 const GROUPS = [
@@ -21,7 +20,7 @@ const GROUPS = [
   { id: "footwear", label: "Your shoes", y: 430 },
 ];
 
-export function Constellation({ garments, edges, selectedId, onSelect, token }: Props) {
+export function Constellation({ garments, edges, selectedId, onSelect }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
 
@@ -141,7 +140,7 @@ export function Constellation({ garments, edges, selectedId, onSelect, token }: 
       cancelled = true;
       cyRef.current?.destroy();
     };
-  }, [garments, edges, onSelect, token]);
+  }, [garments, edges, onSelect]);
 
   useEffect(() => {
     const cy = cyRef.current;

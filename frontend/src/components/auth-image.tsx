@@ -6,12 +6,10 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export function AuthImage({
   assetId,
-  token,
   alt,
   className,
 }: {
   assetId?: string | null;
-  token: string;
   alt: string;
   className?: string;
 }) {
@@ -21,7 +19,7 @@ export function AuthImage({
     if (!assetId) return;
     let objectUrl: string | null = null;
     let cancelled = false;
-    fetch(`${API}/v1/assets/${assetId}/content`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API}/v1/assets/${assetId}/content`, { credentials: "include" })
       .then((response) => (response.ok ? response.blob() : Promise.reject()))
       .then((blob) => {
         objectUrl = URL.createObjectURL(blob);
@@ -34,7 +32,7 @@ export function AuthImage({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [assetId, token]);
+  }, [assetId]);
 
   if (!assetId || !src) {
     return <div className={`bg-[#f6f6f6] ${className || ""}`} aria-hidden />;

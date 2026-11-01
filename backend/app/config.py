@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     supabase_storage_bucket: str = "closest-chemistry-private"
 
     jwt_issuer: str = ""
+    auth_mode: Literal["single", "session"] = "single"
+    single_owner_id: str = "local"
     cors_origins: str = "http://localhost:3000"
 
     gemini_api_key: str = ""
@@ -112,8 +114,8 @@ class Settings(BaseSettings):
     def require_database(self) -> str:
         if not self.database_url:
             raise RuntimeError(
-                "DATABASE_URL is missing. Set a Supabase Postgres URI "
-                "(postgresql+psycopg://...) or the local Compose URL."
+                "DATABASE_URL is missing. Set a Postgres URI "
+                "(postgresql+psycopg://...) or the local Compose URL. Sign-in is not required."
             )
         return self.database_url
 

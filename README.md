@@ -4,7 +4,7 @@ Discover what clicks in your closet.
 
 Closest Chemistry answers a single question: **which purchases unlock the most distinct, rule-qualified outfit options with clothes you already own?** It is not a claim about attractiveness, physical fit, guaranteed wear, or reduced returns. Exact search is exact under the declared compatibility rules, not objective fashion truth.
 
-This repository is a production-shaped application: Next.js App Router, FastAPI, a PostgreSQL-backed worker, Supabase Auth/Storage, Gemini extraction, and YouCam virtual try-on. Empty databases show onboarding. Missing credentials produce actionable configuration errors. No wardrobe, catalogue, price, metric, or preview is fabricated.
+This repository is a production-shaped application: Next.js App Router, FastAPI, a PostgreSQL-backed worker, local or optional object storage, Gemini extraction, and YouCam virtual try-on. There is **no sign-in**. One shared anonymous session owns the closet. Empty databases show onboarding. Missing credentials produce actionable configuration errors. No wardrobe, catalogue, price, metric, or preview is fabricated.
 
 ## Architecture
 
@@ -13,7 +13,7 @@ This repository is a production-shaped application: Next.js App Router, FastAPI,
 | Web | Next.js 15 App Router, TypeScript, Tailwind, TanStack Query, Recharts, Cytoscape.js | Vercel |
 | API | Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic, Pillow, HTTPX, Google GenAI SDK | Render (Docker) |
 | Worker | Same Python package, persistent process | Render worker |
-| Data | Supabase PostgreSQL, Auth, private Storage | Supabase |
+| Data | PostgreSQL (Render or Compose). Photos on API disk, or optional private bucket | Render Postgres |
 
 Expensive work (Gemini extraction, analysis, YouCam) returns **HTTP 202** plus a durable job id. The worker claims jobs with `FOR UPDATE SKIP LOCKED`, renewable leases, heartbeats, bounded attempts, and crash recovery. In-process background tasks are not used.
 
@@ -79,13 +79,12 @@ npm run build
 | Variable | Purpose | If missing |
 | --- | --- | --- |
 | `DATABASE_URL` | SQLAlchemy Postgres URI (`postgresql+psycopg://`) | API/worker refuse to start |
-| `SUPABASE_URL` + JWKS or `SUPABASE_JWT_SECRET` | Verify JWT signature, issuer, audience, expiry | 503 with setup text |
-| `SUPABASE_ANON_KEY` / `NEXT_PUBLIC_*` | Browser sign-in | Sign-in screen explains the gap |
-| `SUPABASE_SERVICE_ROLE_KEY` | Private bucket writes | Local filesystem fallback; production should use the private bucket |
+| `AUTH_MODE` | `single` (default): one shared closet. `session` only for tests/multi-tab isolation | Defaults to one user |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional private bucket writes | Local filesystem fallback |
 | `GEMINI_API_KEY` + `GEMINI_MODEL` | Outfit photograph extraction | Extraction returns 503. Model must be a documented identifier (`gemini-3.8-flash` recommended) |
 | `YOU_CAM_API_KEY`, `YOU_CAM_BASE_URL`, `YOU_CAM_UNIT_COST`, `YOU_CAM_ENABLED_CATEGORIES` | Live try-on | Try-on returns 503. Empty enabled categories block paid jobs |
 
-Create the private bucket with `supabase/policies.sql`. The API still enforces `owner_id` on every row and never trusts browser-supplied owners or metrics.
+Sign-in is not used. In `AUTH_MODE=single` every request is the same owner (`local`). Photos default to `LOCAL_STORAGE_DIR` on the API machine.
 
 YouCam documented flow (Perfect Corp AI Clothes v4):
 
@@ -100,7 +99,7 @@ Gemini uses the Google GenAI SDK `models.generate_content` path with structured 
 
 ## User journey
 
-1. Sign in with Supabase. Grant consent for external image processing.
+1. Open the app. Grant consent for external image processing. No account is created.
 2. Upload up to 15 outfit photographs and a separate try-on photo. Signatures, dimensions, byte limits, and decoding are checked; EXIF is stripped; orientation is normalised.
 3. Extraction runs asynchronously. Bounding-box crops become editable garment cards. Nothing is counted until confirmation.
 4. Merge repeat appearances only after explicit confirmation. Colour similarity never auto-merges.
@@ -122,10 +121,10 @@ White backgrounds, no grid lines, cobalt / green / coral accents.
 
 ## Deployment
 
-1. **Supabase**: project, Auth (email), Postgres, private bucket `closest-chemistry-private`, run `supabase/policies.sql`, enable backups.
+1. **Postgres**: Render Postgres (or Compose). Point `DATABASE_URL` at it (`postgresql+psycopg://...`).
 2. **API / worker on Render**: `render.yaml`. Run `alembic upgrade head` as a release command or first-boot (`docker-compose` already does this). Confirm `/healthz` and `/readyz`.
-3. **Frontend on Vercel**: root `frontend/`, set `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Restrict CORS to that origin.
-4. Restrictive CORS is configured from `CORS_ORIGINS`. Provider keys stay server-side.
+3. **Frontend on Vercel**: root `frontend/`, set only `NEXT_PUBLIC_API_URL` to the Render API. Restrict `CORS_ORIGINS` to the Vercel origin.
+4. Provider keys stay server-side. There are no Supabase Auth keys to set.
 
 ## Recovery
 
@@ -137,7 +136,7 @@ White backgrounds, no grid lines, cobalt / green / coral accents.
 
 ## Security
 
-- JWT signature, issuer, audience, and expiry are verified. `owner_id` is `sub`.
+- No accounts. Default mode is one shared anonymous owner (`local`). Tests may send `X-Session-Id` to isolate tenants.
 - Idempotency keys on extract / analyse / try-on.
 - Per-user daily unit reserves and concurrency limits.
 - Logs carry job ids and timings only — never photos, tokens, or signed URLs.
@@ -145,7 +144,7 @@ White backgrounds, no grid lines, cobalt / green / coral accents.
 
 ## Live verification status
 
-Consented live Gemini extraction and YouCam smoke tests were **not executed in this environment**. Required secrets (`GEMINI_API_KEY`, `YOU_CAM_API_KEY`, a reachable Supabase project, and rights-cleared photographs) are not present here.
+Consented live Gemini extraction and YouCam smoke tests were **not executed in this environment**. Required secrets (`GEMINI_API_KEY`, `YOU_CAM_API_KEY`, a reachable Postgres URL, and rights-cleared photographs) are not present here.
 
 Until those run, do **not** label the build production-verified. After you provision credentials:
 

@@ -1,12 +1,11 @@
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function request<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(`${API}${path}`, { ...init, headers });
+  const response = await fetch(`${API}${path}`, { ...init, headers, credentials: "include" });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload.detail || `Request failed (${response.status})`);
@@ -15,9 +14,9 @@ async function request<T>(path: string, token: string, init: RequestInit = {}): 
 }
 
 export const api = {
-  workspace: (token: string) => request<WorkspaceView>("/v1/workspace", token),
-  consent: (token: string) =>
-    request("/v1/consents", token, {
+  workspace: () => request<WorkspaceView>("/v1/workspace"),
+  consent: () =>
+    request("/v1/consents", {
       method: "POST",
       body: JSON.stringify({
         granted: true,
@@ -25,52 +24,51 @@ export const api = {
         policy_version: "2026-11-01",
       }),
     }),
-  upload: async (token: string, kind: string, file: File) => {
+  upload: async (kind: string, file: File) => {
     const body = new FormData();
     body.append("kind", kind);
     body.append("file", file);
-    return request<{ id: string }>("/v1/assets", token, { method: "POST", body });
+    return request<{ id: string }>("/v1/assets", { method: "POST", body });
   },
-  extract: (token: string, assetId: string) =>
-    request<{ job_id: string }>("/v1/assets/" + assetId + "/extract", token, { method: "POST" }),
-  job: (token: string, jobId: string) => request<JobView>(`/v1/jobs/${jobId}`, token),
-  garments: (token: string) => request<{ items: GarmentView[] }>("/v1/garments", token),
-  patchGarment: (token: string, id: string, body: Record<string, unknown>) =>
-    request(`/v1/garments/${id}`, token, { method: "PATCH", body: JSON.stringify(body) }),
-  merge: (token: string, targetId: string, sourceIds: string[]) =>
-    request("/v1/garments/merge", token, {
+  extract: (assetId: string) => request<{ job_id: string }>(`/v1/assets/${assetId}/extract`, { method: "POST" }),
+  job: (jobId: string) => request<JobView>(`/v1/jobs/${jobId}`),
+  garments: () => request<{ items: GarmentView[] }>("/v1/garments"),
+  patchGarment: (id: string, body: Record<string, unknown>) =>
+    request(`/v1/garments/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  merge: (targetId: string, sourceIds: string[]) =>
+    request("/v1/garments/merge", {
       method: "POST",
       body: JSON.stringify({ target_id: targetId, source_ids: sourceIds, confirmed: true }),
     }),
-  products: (token: string) => request<{ items: ProductView[] }>("/v1/products", token),
-  ingestUrl: (token: string, body: Record<string, unknown>) =>
-    request("/v1/products/url", token, { method: "POST", body: JSON.stringify(body) }),
-  createProduct: async (token: string, fields: Record<string, string>, file: File) => {
+  products: () => request<{ items: ProductView[] }>("/v1/products"),
+  ingestUrl: (body: Record<string, unknown>) =>
+    request("/v1/products/url", { method: "POST", body: JSON.stringify(body) }),
+  createProduct: async (fields: Record<string, string>, file: File) => {
     const body = new FormData();
     Object.entries(fields).forEach(([key, value]) => body.append(key, value));
     body.append("file", file);
-    return request("/v1/products", token, { method: "POST", body });
+    return request("/v1/products", { method: "POST", body });
   },
-  patchCart: (token: string, id: string, body: Record<string, unknown>) =>
-    request(`/v1/cart/${id}`, token, { method: "PATCH", body: JSON.stringify(body) }),
-  createAnalysis: (token: string, body: Record<string, unknown>) =>
-    request<{ analysis_id: string; job_id: string }>("/v1/analyses", token, {
+  patchCart: (id: string, body: Record<string, unknown>) =>
+    request(`/v1/cart/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  createAnalysis: (body: Record<string, unknown>) =>
+    request<{ analysis_id: string; job_id: string }>("/v1/analyses", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  analysis: (token: string, id: string) => request<AnalysisView>(`/v1/analyses/${id}`, token),
-  outfit: (token: string, analysisId: string, combinationId: string) =>
-    request(`/v1/analyses/${analysisId}/outfits/${combinationId}`, token),
-  feedback: (token: string, body: Record<string, unknown>) =>
-    request("/v1/feedback", token, { method: "POST", body: JSON.stringify(body) }),
-  feedbackSummary: (token: string) => request<FeedbackSummary>("/v1/feedback/summary", token),
-  tryon: (token: string, body: Record<string, unknown>) =>
-    request<{ tryon_id: string; job_id: string }>("/v1/tryon", token, {
+  analysis: (id: string) => request<AnalysisView>(`/v1/analyses/${id}`),
+  outfit: (analysisId: string, combinationId: string) =>
+    request(`/v1/analyses/${analysisId}/outfits/${combinationId}`),
+  feedback: (body: Record<string, unknown>) =>
+    request("/v1/feedback", { method: "POST", body: JSON.stringify(body) }),
+  feedbackSummary: () => request<FeedbackSummary>("/v1/feedback/summary"),
+  tryon: (body: Record<string, unknown>) =>
+    request<{ tryon_id: string; job_id: string }>("/v1/tryon", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  tryonStatus: (token: string, id: string) => request<TryOnView>(`/v1/tryon/${id}`, token),
-  deleteWorkspace: (token: string) => request("/v1/workspace", token, { method: "DELETE" }),
+  tryonStatus: (id: string) => request<TryOnView>(`/v1/tryon/${id}`),
+  deleteWorkspace: () => request("/v1/workspace", { method: "DELETE" }),
 };
 
 export function assetUrl(id: string) {

@@ -14,9 +14,9 @@ import { AlgorithmCompare, BudgetFrontier, SynergyMatrix, UnlockRanking } from "
 import { Constellation } from "@/components/graphs/constellation";
 import { Logo } from "@/components/logo";
 
-async function pollJob(token: string, jobId: string) {
+async function pollJob(jobId: string) {
   for (let i = 0; i < 90; i += 1) {
-    const job = await api.job(token, jobId);
+    const job = await api.job(jobId);
     if (job.status === "succeeded" || job.status === "failed") return job;
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
@@ -27,18 +27,18 @@ function money(minor: number, currency: string) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
 }
 
-export function Studio({ token, email, onSignOut }: { token: string; email?: string; onSignOut: () => void }) {
+export function Studio() {
   const queryClient = useQueryClient();
-  const workspace = useQuery({ queryKey: ["workspace"], queryFn: () => api.workspace(token) });
-  const garments = useQuery({ queryKey: ["garments"], queryFn: () => api.garments(token) });
-  const products = useQuery({ queryKey: ["products"], queryFn: () => api.products(token) });
+  const workspace = useQuery({ queryKey: ["workspace"], queryFn: () => api.workspace() });
+  const garments = useQuery({ queryKey: ["garments"], queryFn: () => api.garments() });
+  const products = useQuery({ queryKey: ["products"], queryFn: () => api.products() });
   const analysisId = workspace.data?.latest_analysis_id;
   const analysis = useQuery({
     queryKey: ["analysis", analysisId],
-    queryFn: () => api.analysis(token, analysisId!),
+    queryFn: () => api.analysis(analysisId!),
     enabled: Boolean(analysisId),
   });
-  const feedback = useQuery({ queryKey: ["feedback"], queryFn: () => api.feedbackSummary(token) });
+  const feedback = useQuery({ queryKey: ["feedback"], queryFn: () => api.feedbackSummary() });
 
   const [tab, setTab] = useState<"wardrobe" | "discover" | "compare" | "saved">("wardrobe");
   const [budget, setBudget] = useState(25000);
@@ -70,10 +70,10 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
     setError(null);
     try {
       for (const file of Array.from(files).slice(0, kind === "outfit" ? 15 : 1)) {
-        const uploaded = await api.upload(token, kind, file);
+        const uploaded = await api.upload(kind, file);
         if (kind === "outfit") {
-          const job = await api.extract(token, uploaded.id);
-          const extracted = await pollJob(token, job.job_id);
+          const job = await api.extract(uploaded.id);
+          const extracted = await pollJob(job.job_id);
           if (extracted.status === "failed") throw new Error(extracted.error_safe || "Extraction failed.");
         }
       }
@@ -85,13 +85,13 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
 
   const runAnalysis = useMutation({
     mutationFn: async () => {
-      const created = await api.createAnalysis(token, {
+      const created = await api.createAnalysis({
         occasion,
         budget_minor: budget,
         currency: workspace.data?.currency || "USD",
         footwear_required: footwear,
       });
-      const done = await pollJob(token, created.job_id);
+      const done = await pollJob(created.job_id);
       if (done.status === "failed") throw new Error(done.error_safe || "Analysis failed.");
       return created.analysis_id;
     },
@@ -102,13 +102,13 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
   const liveTryOn = useMutation({
     mutationFn: async () => {
       const garmentIds = selectedOutfit ? (selectedOutfit.garment_ids as string[]) : selectedId ? [selectedId] : [];
-      const created = await api.tryon(token, {
+      const created = await api.tryon({
         combination_id: selectedOutfit?.combination_id,
         garment_ids: garmentIds,
         force_live: true,
       });
-      const done = await pollJob(token, created.job_id);
-      const status = await api.tryonStatus(token, created.tryon_id);
+      const done = await pollJob(created.job_id);
+      const status = await api.tryonStatus(created.tryon_id);
       if (status.status === "failed") throw new Error(status.error_safe || status.limitation || "Try-on failed.");
       return status;
     },
@@ -166,10 +166,9 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
         <section className="min-h-[640px] px-6 py-5">
           {error && <p className="mb-4 rounded-xl bg-pink-soft px-3 py-2 text-sm text-pink">{error}</p>}
           {empty || !workspace.data.consent ? (
-            <Onboarding token={token} workspace={workspace.data} onDone={refresh} onError={setError} />
+            <Onboarding workspace={workspace.data} onDone={refresh} onError={setError} />
           ) : tab === "wardrobe" ? (
             <WardrobeDesk
-              token={token}
               garments={garments.data?.items || []}
               products={products.data?.items || []}
               hasTryOn={workspace.data.has_tryon_photo}
@@ -190,7 +189,7 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
               )}
             </div>
           ) : tab === "saved" ? (
-            <FeedbackPanel token={token} analysis={analysis.data} onRefresh={refresh} />
+            <FeedbackPanel analysis={analysis.data} onRefresh={refresh} />
           ) : (
             <>
               <Constellation
@@ -198,8 +197,7 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
                 edges={result?.edges || []}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                token={token}
-              />
+                />
               {selectedOutfit && (
                 <div className="mt-4 max-w-sm rounded-2xl border border-[#f1f1f1] p-4 shadow-sm">
                   <p className="text-sm font-semibold">{selectedGarment?.display_name || "Selected look"}</p>
@@ -218,7 +216,6 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
             <SelectedCard
               garment={selectedGarment}
               product={selectedProduct}
-              token={token}
               result={result}
             />
           ) : (
@@ -229,7 +226,7 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
             <p className="text-xs text-muted">Live YouCam only. Cached results stay labelled. Crops used for counting may be unsuitable VTO references.</p>
             {tryonAsset && (
               <div className="mt-3">
-                <AuthImage assetId={tryonAsset} token={token} alt="Live try-on result" className="h-48 w-full rounded-2xl object-cover" />
+                <AuthImage assetId={tryonAsset} alt="Live try-on result" className="h-48 w-full rounded-2xl object-cover" />
                 <p className="mt-1 text-[11px] text-pink">{tryonLabel}</p>
               </div>
             )}
@@ -259,7 +256,7 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
           <div className="grid grid-cols-2 gap-3">
             {products.data?.items.map((item) => (
               <button key={item.id} onClick={() => setSelectedId(item.id)} className="text-left">
-                <AuthImage assetId={item.image_asset_id} token={token} alt={item.title} className="h-28 w-full rounded-xl object-cover" />
+                <AuthImage assetId={item.image_asset_id} alt={item.title} className="h-28 w-full rounded-xl object-cover" />
                 <p className="mt-1 text-xs font-medium">{item.title}</p>
                 <p className="text-xs text-muted">{money(item.price_minor, item.currency)}</p>
               </button>
@@ -281,9 +278,14 @@ export function Studio({ token, email, onSignOut }: { token: string; email?: str
           <button onClick={() => runAnalysis.mutate()} disabled={runAnalysis.isPending} className="mt-3 w-full rounded-full bg-ink py-3 text-sm text-white">
             {runAnalysis.isPending ? "Computing exact basket…" : "Compute rankings"}
           </button>
-          <p className="mt-4 text-[11px] text-muted">{email}</p>
-          <button className="text-[11px] text-pink" onClick={onSignOut}>
-            Sign out
+          <button
+            className="mt-4 text-[11px] text-pink"
+            onClick={async () => {
+              await api.deleteWorkspace();
+              refresh();
+            }}
+          >
+            Start over
           </button>
         </div>
       </footer>
@@ -298,12 +300,10 @@ function EmptyGraph({ label }: { label: string }) {
 function SelectedCard({
   garment,
   product,
-  token,
   result,
 }: {
   garment?: GarmentView;
   product?: ProductView;
-  token: string;
   result?: AnalysisView["result"];
 }) {
   const title = product?.title || garment?.display_name || "";
@@ -312,7 +312,6 @@ function SelectedCard({
     <div>
       <AuthImage
         assetId={product?.image_asset_id || garment?.crop_asset_id}
-        token={token}
         alt={title}
         className="h-56 w-full rounded-2xl object-cover"
       />
@@ -329,10 +328,10 @@ function SelectedCard({
       )}
       {product?.cart_item_id && (
         <div className="mt-4 flex gap-2 text-xs">
-          <button className="rounded-full border px-3 py-1" onClick={() => api.patchCart(token, product.cart_item_id!, { pinned: !product.pinned })}>
+          <button className="rounded-full border px-3 py-1" onClick={() => api.patchCart(product.cart_item_id!, { pinned: !product.pinned })}>
             {product.pinned ? "Unpin" : "Pin this item"}
           </button>
-          <button className="rounded-full border px-3 py-1" onClick={() => api.patchCart(token, product.cart_item_id!, { excluded: !product.excluded })}>
+          <button className="rounded-full border px-3 py-1" onClick={() => api.patchCart(product.cart_item_id!, { excluded: !product.excluded })}>
             {product.excluded ? "Include" : "Exclude"}
           </button>
         </div>
@@ -342,19 +341,17 @@ function SelectedCard({
 }
 
 function Onboarding({
-  token,
   workspace,
   onDone,
   onError,
 }: {
-  token: string;
   workspace: WorkspaceView;
   onDone: () => void;
   onError: (message: string) => void;
 }) {
   async function grant() {
     try {
-      await api.consent(token);
+      await api.consent();
       onDone();
     } catch (err) {
       onError(err instanceof Error ? err.message : "Consent failed.");
@@ -377,7 +374,6 @@ function Onboarding({
 }
 
 function WardrobeDesk({
-  token,
   garments,
   products,
   hasTryOn,
@@ -385,7 +381,6 @@ function WardrobeDesk({
   onError,
   onUpload,
 }: {
-  token: string;
   garments: GarmentView[];
   products: ProductView[];
   hasTryOn: boolean;
@@ -408,7 +403,7 @@ function WardrobeDesk({
 
   async function confirm(item: GarmentView) {
     try {
-      await api.patchGarment(token, item.id, {
+      await api.patchGarment(item.id, {
         display_name: item.display_name,
         category: item.category,
         colour_family: item.colour_family || item.colour,
@@ -440,11 +435,11 @@ function WardrobeDesk({
           .filter((item) => item.source_kind === "wardrobe")
           .map((item) => (
             <article key={item.id} className="rounded-2xl border border-[#f1f1f1] p-3">
-              <AuthImage assetId={item.crop_asset_id} token={token} alt={item.display_name} className="h-40 w-full rounded-xl object-cover" />
+              <AuthImage assetId={item.crop_asset_id} alt={item.display_name} className="h-40 w-full rounded-xl object-cover" />
               <input
                 className="mt-2 w-full text-sm font-medium"
                 defaultValue={item.display_name}
-                onBlur={(event) => api.patchGarment(token, item.id, { display_name: event.target.value }).then(onRefresh)}
+                onBlur={(event) => api.patchGarment(item.id, { display_name: event.target.value }).then(onRefresh)}
               />
               <p className="text-xs text-muted">
                 {item.category} · {item.status}
@@ -470,7 +465,7 @@ function WardrobeDesk({
             className="ml-1 text-pink"
             onClick={async () => {
               const others = garments.filter((item) => item.id !== mergeTarget && item.status !== "merged").map((item) => item.id);
-              if (others[0]) await api.merge(token, mergeTarget, [others[0]]);
+              if (others[0]) await api.merge(mergeTarget, [others[0]]);
               setMergeTarget("");
               onRefresh();
             }}
@@ -489,7 +484,7 @@ function WardrobeDesk({
             return;
           }
           try {
-            await api.createProduct(token, draft, productFile);
+            await api.createProduct(draft, productFile);
             setDraft({ title: "", price_major: "", currency: draft.currency, category: "top" });
             setProductFile(null);
             onRefresh();
@@ -522,11 +517,9 @@ function WardrobeDesk({
 }
 
 function FeedbackPanel({
-  token,
   analysis,
   onRefresh,
 }: {
-  token: string;
   analysis?: AnalysisView;
   onRefresh: () => void;
 }) {
@@ -541,7 +534,7 @@ function FeedbackPanel({
             <button
               className="rounded-full bg-green px-3 py-1 text-xs text-white"
               onClick={() =>
-                api.feedback(token, {
+                api.feedback({
                   analysis_id: analysis!.id,
                   target_kind: "outfit",
                   target_id: outfit.combination_id,
@@ -554,7 +547,7 @@ function FeedbackPanel({
             <button
               className="rounded-full bg-coral px-3 py-1 text-xs text-white"
               onClick={() =>
-                api.feedback(token, {
+                api.feedback({
                   analysis_id: analysis!.id,
                   target_kind: "outfit",
                   target_id: outfit.combination_id,
