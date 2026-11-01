@@ -1,0 +1,9 @@
+.git
+frontend/node_modules
+frontend/.next
+backend/.venv
+backend/.local_storage
+**/__pycache__
+**/.pytest_cache
+.env
+.env.local

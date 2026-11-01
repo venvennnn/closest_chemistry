@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  --pink: #ff2d8b;
+  --pink-soft: #ffe4f1;
+  --pink-line: #ff4da0;
+  --cobalt: #245bff;
+  --green: #1fa97a;
+  --coral: #ff6b4a;
+  --ink: #111111;
+  --muted: #6b7280;
+  --line: #f1f2f4;
+}
+
+@theme inline {
+  --color-pink: var(--pink);
+  --color-pink-soft: var(--pink-soft);
+  --color-cobalt: var(--cobalt);
+  --color-green: var(--green);
+  --color-coral: var(--coral);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-geist-sans);
+}
+
+html,
+body {
+  background: #ffffff;
+  color: var(--ink);
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-geist-sans), Helvetica, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.no-grid .recharts-cartesian-grid {
+  display: none;
+}

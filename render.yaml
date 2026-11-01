@@ -1,0 +1,64 @@
+services:
+  - type: web
+    name: closest-chemistry-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: YOU_CAM_API_KEY
+        sync: false
+      - key: YOU_CAM_BASE_URL
+        value: https://yce-api-01.makeupar.com
+      - key: YOU_CAM_UNIT_COST
+        value: "2"
+      - key: YOU_CAM_ENABLED_CATEGORIES
+        sync: false
+      - key: AUTH_MODE
+        value: single
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: worker
+    name: closest-chemistry-worker
+    runtime: docker
+    dockerfilePath: backend/Dockerfile.worker
+    dockerContext: backend
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromService:
+          name: closest-chemistry-api
+          type: web
+          envVarKey: DATABASE_URL
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: YOU_CAM_API_KEY
+        sync: false
+      - key: YOU_CAM_BASE_URL
+        value: https://yce-api-01.makeupar.com
+      - key: YOU_CAM_UNIT_COST
+        value: "2"
+      - key: YOU_CAM_ENABLED_CATEGORIES
+        sync: false
