@@ -13,6 +13,7 @@ os.environ["ENVIRONMENT"] = "test"
 os.environ["AUTH_MODE"] = "single"
 os.environ["DATABASE_SSL_REQUIRE"] = "false"
 os.environ["LOCAL_STORAGE_DIR"] = str(ROOT / ".local_storage_test")
+os.environ["RUN_WORKER"] = "0"
 
 from app.config import get_settings
 from app.database import Base, reset_engine, get_engine

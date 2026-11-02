@@ -17,6 +17,8 @@ def healthz() -> dict:
 def readyz(session: Session = Depends(get_db)) -> dict:
     settings = get_settings()
     session.execute(text("SELECT 1"))
+    from app.worker import WORKER_STATE
+
     return {
         "status": "ready",
         "database": True,
@@ -24,4 +26,5 @@ def readyz(session: Session = Depends(get_db)) -> dict:
         "youcam_configured": not bool(settings.missing_youcam()),
         "auth_configured": True,
         "auth_mode": settings.auth_mode,
+        "worker_running": bool(WORKER_STATE.get("alive")),
     }

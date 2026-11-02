@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -43,6 +44,18 @@ from app.services.storage import StorageError, get_bytes, new_key, put_bytes
 from app.services.workspace import get_or_create_workspace, latest_consent, record_consent
 
 router = APIRouter(prefix="/v1", tags=["v1"])
+log = logging.getLogger("closest_chemistry")
+
+
+def _kick_job(session: Session, job: Job) -> None:
+    """Process one queued job now so extract does not wait on a separate worker process."""
+    try:
+        from app.worker import run_once
+
+        run_once(f"{job.kind}-kick-{str(job.id)[:8]}")
+        session.refresh(job)
+    except Exception:
+        log.exception("%s kick failed; in-process worker will retry", job.kind)
 
 
 def _workspace(session: Session, principal: Principal) -> Workspace:
@@ -241,6 +254,7 @@ def extract_asset(
         payload={"asset_id": str(asset.id)},
         idempotency_key=_idempotency(idempotency_key),
     )
+    _kick_job(session, job)
     return {"job_id": str(job.id), "status": job.status}
 
 
@@ -586,7 +600,8 @@ def create_analysis(
     )
     analysis.job_id = job.id
     session.commit()
-    return {"analysis_id": str(analysis.id), "job_id": str(job.id), "status": "queued"}
+    _kick_job(session, job)
+    return {"analysis_id": str(analysis.id), "job_id": str(job.id), "status": job.status}
 
 
 @router.get("/analyses/{analysis_id}")
