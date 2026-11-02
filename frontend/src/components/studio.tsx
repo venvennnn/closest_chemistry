@@ -14,7 +14,7 @@ import { AlgorithmCompare, BudgetFrontier, UnlockRanking } from "@/components/gr
 import { CombinationHub } from "@/components/graphs/hub";
 import { Logo } from "@/components/logo";
 
-async function pollJob(jobId: string, onTick?: (job: { status: string }) => void) {
+async function pollJob(jobId: string, onTick?: (job: { status: string; error_safe?: string | null }) => void) {
   const started = Date.now();
   for (let i = 0; i < 90; i += 1) {
     const job = await api.job(jobId);
@@ -23,12 +23,13 @@ async function pollJob(jobId: string, onTick?: (job: { status: string }) => void
     const waited = Date.now() - started;
     if (job.status === "queued" && waited > 45_000) {
       throw new Error(
-        "No worker claimed this job. Redeploy the API so start-api.sh runs the worker, and set GEMINI_API_KEY on that service.",
+        job.error_safe ||
+          "No worker claimed this job. Redeploy the Railway API (Root Directory backend) from this branch, set GEMINI_API_KEY on that service, and confirm /readyz shows worker_running: true.",
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
-  throw new Error("Job timed out waiting for the worker or Gemini. Confirm GEMINI_API_KEY and that the API container is running the worker.");
+  throw new Error("Job timed out waiting for the worker or Gemini. Confirm GEMINI_API_KEY and that /readyz shows worker_running: true.");
 }
 
 function money(minor: number, currency: string) {
@@ -121,7 +122,9 @@ export function Studio() {
                 const message =
                   tick.status === "leased"
                     ? "Gemini is reading the photo…"
-                    : "Waiting for the worker…";
+                    : tick.error_safe
+                      ? tick.error_safe
+                      : "Waiting for the worker…";
                 setPendingPhotos((current) =>
                   current.map((item) => (item.key === key ? { ...item, message } : item)),
                 );

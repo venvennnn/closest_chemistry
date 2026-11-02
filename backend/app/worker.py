@@ -316,6 +316,8 @@ HANDLERS = {
     "tryon": process_tryon,
 }
 
+WORKER_STATE = {"alive": False, "worker_id": None}
+
 
 def run_once(worker_id: str) -> bool:
     session = get_session_factory()()
@@ -344,15 +346,25 @@ def run_once(worker_id: str) -> bool:
         session.close()
 
 
-def main() -> None:
+def run_loop() -> None:
     settings = get_settings()
     settings.require_database()
     worker_id = f"worker-{uuid.uuid4().hex[:10]}"
+    WORKER_STATE["alive"] = True
+    WORKER_STATE["worker_id"] = worker_id
     log.info("worker starting", extra={"worker_id": worker_id})
     while True:
-        worked = run_once(worker_id)
-        if not worked:
+        try:
+            worked = run_once(worker_id)
+            if not worked:
+                time.sleep(1)
+        except Exception:
+            log.exception("worker loop error", extra={"worker_id": worker_id})
             time.sleep(2)
+
+
+def main() -> None:
+    run_loop()
 
 
 if __name__ == "__main__":

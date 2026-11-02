@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,7 +21,25 @@ from app.services.storage import StorageError
 settings = get_settings()
 log = logging.getLogger("closest_chemistry")
 
-app = FastAPI(title="Closest Chemistry", version=__version__)
+
+def _should_run_worker() -> bool:
+    if os.environ.get("RUN_WORKER", "1") == "0":
+        return False
+    return get_settings().environment != "test"
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if _should_run_worker():
+        from app.worker import run_loop
+
+        thread = threading.Thread(target=run_loop, name="closest-chemistry-worker", daemon=True)
+        thread.start()
+        log.info("started in-process job worker")
+    yield
+
+
+app = FastAPI(title="Closest Chemistry", version=__version__, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

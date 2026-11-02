@@ -20,6 +20,10 @@ def get_engine():
     if _engine is None:
         settings = get_settings()
         url = settings.require_database()
+        if url.startswith("postgres://"):
+            url = "postgresql+psycopg://" + url[len("postgres://") :]
+        elif url.startswith("postgresql://"):
+            url = "postgresql+psycopg://" + url[len("postgresql://") :]
         connect_args = {}
         engine_kwargs: dict = {"pool_pre_ping": True, "connect_args": connect_args}
         if url.startswith("sqlite"):

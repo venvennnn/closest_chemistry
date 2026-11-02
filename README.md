@@ -122,7 +122,7 @@ Editorial cream canvas, pink connections, no grid lines.
 ## Deployment
 
 1. **Postgres**: Render Postgres, Railway Postgres, or Compose. Point `DATABASE_URL` at it (`postgresql+psycopg://...`).
-2. **API / worker**: Docker from `backend/`. `start-api.sh` runs `alembic upgrade head`, starts a worker in the same container, then uvicorn. Set `GEMINI_API_KEY` on that service. Confirm `/healthz` and `/readyz`.
+2. **API / worker**: Docker from `backend/`. `start-api.sh` runs `alembic upgrade head` then uvicorn. The API process starts the job worker on lifespan (same disk). Set `GEMINI_API_KEY` on that service. Confirm `/readyz` shows `worker_running: true`.
 3. **Railway**: create a service from this GitHub repo with **Root Directory = `backend`** (not the repo root, not `frontend/`). Builder: Dockerfile. Redeploy after pulling this start script so extract jobs are claimed. A second worker from `backend/Dockerfile.worker` is optional.
 4. **Frontend on Vercel**: root `frontend/`. Set **server** env `API_URL` to the API origin (no trailing slash). The browser calls same-origin `/v1`; Next.js proxies. Also set `CORS_ORIGINS` on the API to the Vercel origin. Provider keys stay server-side.
 
