@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth import Principal, current_principal
@@ -15,20 +16,14 @@ from app.jobs import enqueue_job
 from app.models import (
     Analysis,
     Asset,
-    Basket,
     CartItem,
-    Consent,
     Feedback,
     Garment,
     GarmentObservation,
-    IdempotencyRecord,
     Job,
     OutfitCandidate,
-    OutfitCluster,
     Product,
-    ProviderTask,
     TryOnRequest,
-    UsageLedger,
     Workspace,
     utcnow,
 )
@@ -45,7 +40,7 @@ from app.schemas import (
 from app.services.images import ImageValidationError, normalise_image
 from app.services.ingestion import ingest_product_url, parse_price_minor
 from app.services.storage import StorageError, get_bytes, new_key, put_bytes
-from app.services.workspace import get_or_create_workspace, latest_consent, record_consent
+from app.services.workspace import get_or_create_workspace, latest_consent, record_consent, wipe_owner
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 log = logging.getLogger("closest_chemistry")
@@ -97,11 +92,6 @@ def _latest_asset(session: Session, workspace: Workspace, kind: str) -> Asset | 
         .where(Asset.workspace_id == workspace.id, Asset.kind == kind, Asset.deleted_at.is_(None))
         .order_by(Asset.created_at.desc())
     )
-
-
-def _delete_owned(session: Session, model: type, owner_id: str) -> None:
-    for row in session.scalars(select(model).where(model.owner_id == owner_id)).all():
-        session.delete(row)
 
 
 @router.get("/workspace")
@@ -791,39 +781,19 @@ def delete_workspace(
 ) -> dict:
     from app.services.storage import delete_prefix
 
-    workspace = _workspace(session, principal)
+    _workspace(session, principal)
     owner = principal.owner_id
-    for garment in session.scalars(select(Garment).where(Garment.owner_id == owner)).all():
-        garment.merged_into_id = None
-        garment.crop_asset_id = None
-    for asset in session.scalars(select(Asset).where(Asset.owner_id == owner)).all():
-        asset.parent_asset_id = None
-        asset.consent_id = None
-    for analysis in session.scalars(select(Analysis).where(Analysis.owner_id == owner)).all():
-        analysis.job_id = None
-    session.flush()
-    for model in (
-        UsageLedger,
-        ProviderTask,
-        Feedback,
-        Basket,
-        OutfitCandidate,
-        OutfitCluster,
-        TryOnRequest,
-        Analysis,
-        CartItem,
-        Product,
-        GarmentObservation,
-        Garment,
-        Asset,
-        Consent,
-        Job,
-        IdempotencyRecord,
-        Workspace,
-    ):
-        _delete_owned(session, model, owner)
-    delete_prefix(owner)
-    session.commit()
+    try:
+        wipe_owner(session, owner)
+        delete_prefix(owner)
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        log.exception("workspace wipe failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Could not clear this closet. Redeploy the latest API and try Start over again.",
+        ) from exc
     return {
         "deleted": True,
         "limitations": (

@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -34,6 +34,14 @@ def get_engine():
                 separator = "&" if "?" in url else "?"
                 url = f"{url}{separator}sslmode=require" if "localhost" not in url and "127.0.0.1" not in url else url
         _engine = create_engine(url, **engine_kwargs)
+        if url.startswith("sqlite"):
+
+            @event.listens_for(_engine, "connect")
+            def _sqlite_foreign_keys(dbapi_connection, _connection_record):  # noqa: ANN001
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON")
+                cursor.close()
+
     return _engine
 
 
