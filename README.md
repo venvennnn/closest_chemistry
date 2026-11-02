@@ -121,9 +121,10 @@ Editorial cream canvas, pink connections, no grid lines.
 
 ## Deployment
 
-1. **Postgres**: Render Postgres (or Compose). Point `DATABASE_URL` at it (`postgresql+psycopg://...`).
-2. **API / worker on Render**: `render.yaml`. Run `alembic upgrade head` as a release command or first-boot (`docker-compose` already does this). Confirm `/healthz` and `/readyz`.
-3. **Frontend on Vercel**: root `frontend/`. Set **server** env `API_URL` to the Render/Railway API origin (no trailing slash). The browser calls same-origin `/v1`; Next.js proxies. Also set `CORS_ORIGINS` on the API to the Vercel origin.
+1. **Postgres**: Render Postgres, Railway Postgres, or Compose. Point `DATABASE_URL` at it (`postgresql+psycopg://...`).
+2. **API / worker**: Docker from `backend/`. The API image runs `alembic upgrade head` on boot (`start-api.sh`), then uvicorn. Confirm `/healthz` and `/readyz`.
+3. **Railway**: create a service from this GitHub repo with **Root Directory = `backend`** (not the repo root, not `frontend/`). Builder: Dockerfile. That is the only service that has `alembic.ini`. Do not run the migration in an empty shell, the frontend, or Postgres. The worker is a second service from `backend/Dockerfile.worker` with the same `DATABASE_URL`.
+4. **Frontend on Vercel**: root `frontend/`. Set **server** env `API_URL` to the API origin (no trailing slash). The browser calls same-origin `/v1`; Next.js proxies. Also set `CORS_ORIGINS` on the API to the Vercel origin.
 4. Provider keys stay server-side. There are no Supabase Auth keys to set.
 
 ## Recovery
