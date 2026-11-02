@@ -19,11 +19,13 @@ def readyz(session: Session = Depends(get_db)) -> dict:
     session.execute(text("SELECT 1"))
     from app.worker import WORKER_STATE
 
+    youcam_missing = settings.missing_youcam()
     return {
         "status": "ready",
         "database": True,
         "gemini_configured": not bool(settings.missing_gemini()),
-        "youcam_configured": not bool(settings.missing_youcam()),
+        "youcam_configured": youcam_missing is None,
+        "youcam_missing": youcam_missing,
         "auth_configured": True,
         "auth_mode": settings.auth_mode,
         "worker_running": bool(WORKER_STATE.get("alive")),

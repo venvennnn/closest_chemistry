@@ -117,6 +117,8 @@ def test_readyz_reports_worker_flag(session):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["worker_running"] is False
+    assert body["youcam_configured"] is False
+    assert body["youcam_missing"]
     app.dependency_overrides.clear()
 
 

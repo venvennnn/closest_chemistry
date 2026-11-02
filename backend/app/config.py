@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,9 +24,32 @@ YOU_CAM_CATEGORIES = (
     "auto",
 )
 
+# Closet categories → YouCam cloth-v4 names, plus the official identifiers.
+YOU_CAM_CATEGORY_ALIASES = {
+    "upper_body": "upper_body",
+    "top": "upper_body",
+    "upper": "upper_body",
+    "lower_body": "lower_body",
+    "bottom": "lower_body",
+    "lower": "lower_body",
+    "full_body": "full_body",
+    "dress": "full_body",
+    "full": "full_body",
+    "outer": "outer",
+    "outerwear": "outer",
+    "shoes": "shoes",
+    "footwear": "shoes",
+    "auto": "auto",
+}
+
+
+def _youcam_env(default: Any, *names: str) -> Any:
+    # Docs and Railway use YOU_CAM_*; pydantic's default for youcam_* is YOUCAM_*.
+    return Field(default=default, validation_alias=AliasChoices(*names))
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     app_name: str = "Closest Chemistry"
     environment: Literal["development", "test", "production"] = "development"
@@ -54,14 +77,26 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.8-flash"
     gemini_prompt_version: str = "garment-extract-v1"
 
-    youcam_api_key: str = ""
-    youcam_base_url: str = "https://yce-api-01.makeupar.com"
-    youcam_engine_version: str = "cloth-v4"
-    youcam_unit_cost: int = 2
-    youcam_enabled_categories: str = ""
-    youcam_poll_interval_seconds: int = 10
-    youcam_poll_timeout_seconds: int = 180
-    youcam_webhook_secret: str = ""
+    youcam_api_key: str = _youcam_env("", "YOU_CAM_API_KEY", "YOUCAM_API_KEY", "youcam_api_key")
+    youcam_base_url: str = _youcam_env(
+        "https://yce-api-01.makeupar.com", "YOU_CAM_BASE_URL", "YOUCAM_BASE_URL", "youcam_base_url"
+    )
+    youcam_engine_version: str = _youcam_env(
+        "cloth-v4", "YOU_CAM_ENGINE_VERSION", "YOUCAM_ENGINE_VERSION", "youcam_engine_version"
+    )
+    youcam_unit_cost: int = _youcam_env(2, "YOU_CAM_UNIT_COST", "YOUCAM_UNIT_COST", "youcam_unit_cost")
+    youcam_enabled_categories: str = _youcam_env(
+        "", "YOU_CAM_ENABLED_CATEGORIES", "YOUCAM_ENABLED_CATEGORIES", "youcam_enabled_categories"
+    )
+    youcam_poll_interval_seconds: int = _youcam_env(
+        10, "YOU_CAM_POLL_INTERVAL_SECONDS", "YOUCAM_POLL_INTERVAL_SECONDS", "youcam_poll_interval_seconds"
+    )
+    youcam_poll_timeout_seconds: int = _youcam_env(
+        180, "YOU_CAM_POLL_TIMEOUT_SECONDS", "YOUCAM_POLL_TIMEOUT_SECONDS", "youcam_poll_timeout_seconds"
+    )
+    youcam_webhook_secret: str = _youcam_env(
+        "", "YOU_CAM_WEBHOOK_SECRET", "YOUCAM_WEBHOOK_SECRET", "youcam_webhook_secret"
+    )
 
     daily_spend_cap_units: int = 40
     per_user_concurrency: int = 2
@@ -91,6 +126,15 @@ class Settings(BaseSettings):
             )
         return value
 
+    @field_validator("youcam_api_key", "youcam_enabled_categories", "youcam_base_url", "youcam_webhook_secret", mode="before")
+    @classmethod
+    def strip_youcam_strings(cls, value: Any) -> Any:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip().strip("\"'")
+        return value
+
     @property
     def cors_origin_list(self) -> list[str]:
         raw = [item.strip().rstrip("/") for item in self.cors_origins.split(",") if item.strip()]
@@ -113,11 +157,14 @@ class Settings(BaseSettings):
 
     @property
     def youcam_category_list(self) -> list[str]:
-        return [
-            item.strip()
-            for item in self.youcam_enabled_categories.split(",")
-            if item.strip() in YOU_CAM_CATEGORIES
-        ]
+        out: list[str] = []
+        seen: set[str] = set()
+        for item in (self.youcam_enabled_categories or "").split(","):
+            mapped = YOU_CAM_CATEGORY_ALIASES.get(item.strip().strip("\"'").lower())
+            if mapped and mapped not in seen:
+                seen.add(mapped)
+                out.append(mapped)
+        return out
 
     @property
     def resolved_jwt_issuer(self) -> str:
