@@ -82,7 +82,7 @@ npm run build
 | `AUTH_MODE` | `single` (default): one shared closet. `session` only for tests/multi-tab isolation | Defaults to one user |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional private bucket writes | Local filesystem fallback |
 | `GEMINI_API_KEY` + `GEMINI_MODEL` | Outfit photograph extraction | Extraction returns 503. Model must be a documented identifier (`gemini-3.8-flash` recommended) |
-| `YOU_CAM_API_KEY`, `YOU_CAM_BASE_URL`, `YOU_CAM_UNIT_COST`, `YOU_CAM_ENABLED_CATEGORIES` | Live try-on | Try-on returns 503. Empty enabled categories block paid jobs |
+| `YOU_CAM_API_KEY`, `YOU_CAM_BASE_URL`, `YOU_CAM_UNIT_COST`, `YOU_CAM_ENABLED_CATEGORIES` | Live try-on | Try-on returns 503. Empty enabled categories block paid jobs. `/readyz` includes `youcam_missing` with the reason. |
 
 Sign-in is not used. In `AUTH_MODE=single` every request is the same owner (`local`). Photos default to `LOCAL_STORAGE_DIR` on the API machine.
 
