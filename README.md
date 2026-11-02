@@ -46,7 +46,7 @@ export DATABASE_URL=postgresql+psycopg://chemistry:chemistry@localhost:5432/clos
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 
-# Worker (required — do not rely on the API process)
+# Worker (optional if the API runs start-api.sh, which starts a worker too)
 python -m app.worker
 
 # Web
@@ -122,10 +122,9 @@ Editorial cream canvas, pink connections, no grid lines.
 ## Deployment
 
 1. **Postgres**: Render Postgres, Railway Postgres, or Compose. Point `DATABASE_URL` at it (`postgresql+psycopg://...`).
-2. **API / worker**: Docker from `backend/`. The API image runs `alembic upgrade head` on boot (`start-api.sh`), then uvicorn. Confirm `/healthz` and `/readyz`.
-3. **Railway**: create a service from this GitHub repo with **Root Directory = `backend`** (not the repo root, not `frontend/`). Builder: Dockerfile. That is the only service that has `alembic.ini`. Do not run the migration in an empty shell, the frontend, or Postgres. The worker is a second service from `backend/Dockerfile.worker` with the same `DATABASE_URL`.
-4. **Frontend on Vercel**: root `frontend/`. Set **server** env `API_URL` to the API origin (no trailing slash). The browser calls same-origin `/v1`; Next.js proxies. Also set `CORS_ORIGINS` on the API to the Vercel origin.
-4. Provider keys stay server-side. There are no Supabase Auth keys to set.
+2. **API / worker**: Docker from `backend/`. `start-api.sh` runs `alembic upgrade head`, starts a worker in the same container, then uvicorn. Set `GEMINI_API_KEY` on that service. Confirm `/healthz` and `/readyz`.
+3. **Railway**: create a service from this GitHub repo with **Root Directory = `backend`** (not the repo root, not `frontend/`). Builder: Dockerfile. Redeploy after pulling this start script so extract jobs are claimed. A second worker from `backend/Dockerfile.worker` is optional.
+4. **Frontend on Vercel**: root `frontend/`. Set **server** env `API_URL` to the API origin (no trailing slash). The browser calls same-origin `/v1`; Next.js proxies. Also set `CORS_ORIGINS` on the API to the Vercel origin. Provider keys stay server-side.
 
 ## Recovery
 
