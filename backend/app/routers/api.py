@@ -39,7 +39,7 @@ from app.schemas import (
 )
 from app.services.images import ImageValidationError, normalise_image
 from app.services.ingestion import ingest_product_url, parse_price_minor
-from app.services.storage import get_bytes, new_key, put_bytes
+from app.services.storage import StorageError, get_bytes, new_key, put_bytes
 from app.services.workspace import get_or_create_workspace, latest_consent, record_consent
 
 router = APIRouter(prefix="/v1", tags=["v1"])
@@ -57,6 +57,13 @@ def _owned(row: Any, principal: Principal) -> Any:
 
 def _idempotency(key: str | None) -> str | None:
     return key.strip() if key else None
+
+
+def _price_minor(price_major: float, currency: str) -> int:
+    try:
+        return parse_price_minor(price_major, currency)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _require_consent(session: Session, workspace: Workspace) -> None:
@@ -149,7 +156,10 @@ async def upload_asset(
         normalised, meta = normalise_image(data)
     except ImageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    key = put_bytes(principal.owner_id, new_key(kind), normalised, meta["mime_type"])
+    try:
+        key = put_bytes(principal.owner_id, new_key(kind), normalised, meta["mime_type"])
+    except StorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     asset = Asset(
         owner_id=principal.owner_id,
         workspace_id=workspace.id,
@@ -388,7 +398,10 @@ async def create_product(
         normalised, meta = normalise_image(data)
     except ImageValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    key = put_bytes(principal.owner_id, new_key("product"), normalised, meta["mime_type"])
+    try:
+        key = put_bytes(principal.owner_id, new_key("product"), normalised, meta["mime_type"])
+    except StorageError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     asset = Asset(
         owner_id=principal.owner_id,
         workspace_id=workspace.id,
@@ -412,7 +425,7 @@ async def create_product(
         source_url=source_url,
         source_kind="manual",
         image_asset_id=asset.id,
-        price_minor=parse_price_minor(price_major, currency),
+        price_minor=_price_minor(price_major, currency),
         currency=currency.upper(),
         category=category,
         subtype=subtype,

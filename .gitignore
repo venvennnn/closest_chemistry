@@ -22,6 +22,7 @@ frontend/.turbo/
 
 # Storage and runtime
 backend/.local_storage/
+backend/.local_storage_test/
 backend/*.db
 *.sqlite3
 data/
