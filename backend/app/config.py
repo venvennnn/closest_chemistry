@@ -93,7 +93,23 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+        raw = [item.strip().rstrip("/") for item in self.cors_origins.split(",") if item.strip()]
+        if self.frontend_origin:
+            raw.append(self.frontend_origin.strip().rstrip("/"))
+        expanded: list[str] = []
+        for origin in raw:
+            expanded.append(origin)
+            if "://localhost" in origin:
+                expanded.append(origin.replace("://localhost", "://127.0.0.1"))
+            elif "://127.0.0.1" in origin:
+                expanded.append(origin.replace("://127.0.0.1", "://localhost"))
+        seen: set[str] = set()
+        out: list[str] = []
+        for origin in expanded:
+            if origin and origin not in seen:
+                seen.add(origin)
+                out.append(origin)
+        return out
 
     @property
     def youcam_category_list(self) -> list[str]:

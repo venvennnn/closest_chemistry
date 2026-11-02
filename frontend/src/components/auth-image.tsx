@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE } from "@/lib/api";
 
 export function AuthImage({
   assetId,
@@ -19,7 +18,7 @@ export function AuthImage({
     if (!assetId) return;
     let objectUrl: string | null = null;
     let cancelled = false;
-    fetch(`${API}/v1/assets/${assetId}/content`, { credentials: "include" })
+    fetch(`${API_BASE}/v1/assets/${assetId}/content`, { credentials: "include" })
       .then((response) => (response.ok ? response.blob() : Promise.reject()))
       .then((blob) => {
         objectUrl = URL.createObjectURL(blob);

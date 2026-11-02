@@ -1,14 +1,22 @@
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/** Same-origin /v1; Next.js proxies to FastAPI (API_URL / NEXT_PUBLIC_API_URL). */
+export const API_BASE = "";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(`${API}${path}`, { ...init, headers, credentials: "include" });
-  const payload = await response.json().catch(() => ({}));
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: "include" });
+  const payload = await response.json().catch(() => ({} as { detail?: unknown }));
   if (!response.ok) {
-    throw new Error(payload.detail || `Request failed (${response.status})`);
+    const detail = payload.detail;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((item) => (item && typeof item === "object" && "msg" in item ? String(item.msg) : String(item))).join(" ")
+          : `Request failed (${response.status})`;
+    throw new Error(message);
   }
   return payload as T;
 }
@@ -72,7 +80,7 @@ export const api = {
 };
 
 export function assetUrl(id: string) {
-  return `${API}/v1/assets/${id}/content`;
+  return `${API_BASE}/v1/assets/${id}/content`;
 }
 
 export type WorkspaceView = {
