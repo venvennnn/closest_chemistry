@@ -93,6 +93,77 @@ def test_delete_workspace_clears_consent_uploads_and_garments(session):
     app.dependency_overrides.clear()
 
 
+def test_delete_workspace_after_extracted_garments(session):
+    import io
+    from uuid import uuid4
+
+    from PIL import Image
+
+    from app.models import Asset, Garment, GarmentObservation
+
+    workspace = get_or_create_workspace(session, "local")
+    app.dependency_overrides[get_db] = _override(session)
+    client = TestClient(app)
+    buffer = io.BytesIO()
+    Image.new("RGB", (220, 220), color=(30, 80, 40)).save(buffer, format="PNG")
+    png = buffer.getvalue()
+    client.post(
+        "/v1/consents",
+        json={"granted": True, "kind": "external_image_processing", "policy_version": "2026-11-01"},
+    )
+    uploaded = client.post(
+        "/v1/assets",
+        data={"kind": "outfit"},
+        files={"file": ("outfit.png", png, "image/png")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    parent = session.get(Asset, uploaded.json()["id"])
+    crop = Asset(
+        owner_id="local",
+        workspace_id=workspace.id,
+        kind="crop",
+        storage_key="local/crop.jpg",
+        content_sha256="crop",
+        mime_type="image/jpeg",
+        byte_size=10,
+        width=80,
+        height=80,
+        parent_asset_id=parent.id,
+    )
+    session.add(crop)
+    session.flush()
+    garment = Garment(
+        owner_id="local",
+        workspace_id=workspace.id,
+        canonical_key=str(uuid4()),
+        display_name="tank top",
+        category="top",
+        colour_family="white",
+        pattern_family="solid",
+        crop_asset_id=crop.id,
+        source_kind="wardrobe",
+    )
+    session.add(garment)
+    session.flush()
+    session.add(
+        GarmentObservation(
+            owner_id="local",
+            workspace_id=workspace.id,
+            garment_id=garment.id,
+            asset_id=parent.id,
+            bbox={"x": 0, "y": 0, "w": 1, "h": 1},
+            visible_evidence="visible tank",
+        )
+    )
+    session.commit()
+    deleted = client.delete("/v1/workspace")
+    assert deleted.status_code == 200, deleted.text
+    empty = client.get("/v1/workspace")
+    assert empty.status_code == 200
+    assert empty.json()["counts"]["garments"] == 0
+    app.dependency_overrides.clear()
+
+
 def test_tryon_upload_replaces_previous_source(session):
     import io
 
