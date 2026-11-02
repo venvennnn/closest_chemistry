@@ -110,7 +110,7 @@ class Settings(BaseSettings):
     min_image_side: int = 128
     max_image_side: int = 4096
     max_candidates: int = 10
-    min_candidates: int = 4
+    min_candidates: int = 2
     retention_days: int = 90
 
     local_storage_dir: str = ".local_storage"

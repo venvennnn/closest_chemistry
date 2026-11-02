@@ -17,12 +17,16 @@ from app.models import (
     Asset,
     Basket,
     CartItem,
+    Consent,
     Feedback,
     Garment,
     GarmentObservation,
+    IdempotencyRecord,
     Job,
     OutfitCandidate,
+    OutfitCluster,
     Product,
+    ProviderTask,
     TryOnRequest,
     UsageLedger,
     Workspace,
@@ -87,6 +91,19 @@ def _require_consent(session: Session, workspace: Workspace) -> None:
         )
 
 
+def _latest_asset(session: Session, workspace: Workspace, kind: str) -> Asset | None:
+    return session.scalar(
+        select(Asset)
+        .where(Asset.workspace_id == workspace.id, Asset.kind == kind, Asset.deleted_at.is_(None))
+        .order_by(Asset.created_at.desc())
+    )
+
+
+def _delete_owned(session: Session, model: type, owner_id: str) -> None:
+    for row in session.scalars(select(model).where(model.owner_id == owner_id)).all():
+        session.delete(row)
+
+
 @router.get("/workspace")
 def read_workspace(
     principal: Principal = Depends(current_principal),
@@ -106,7 +123,7 @@ def read_workspace(
     analyses = session.scalars(
         select(Analysis).where(Analysis.workspace_id == workspace.id).order_by(Analysis.created_at.desc())
     ).all()
-    tryon = session.scalar(select(Asset).where(Asset.workspace_id == workspace.id, Asset.kind == "tryon_source"))
+    tryon = _latest_asset(session, workspace, "tryon_source")
     return {
         "workspace_id": str(workspace.id),
         "currency": workspace.currency,
@@ -164,6 +181,11 @@ async def upload_asset(
         ).all()
         if len(existing) >= settings.max_outfit_photos:
             raise HTTPException(status_code=400, detail=f"At most {settings.max_outfit_photos} outfit photographs.")
+    if kind == "tryon_source":
+        for previous in session.scalars(
+            select(Asset).where(Asset.workspace_id == workspace.id, Asset.kind == "tryon_source", Asset.deleted_at.is_(None))
+        ).all():
+            previous.deleted_at = utcnow()
     data = await file.read()
     try:
         normalised, meta = normalise_image(data)
@@ -715,7 +737,7 @@ def submit_tryon(
     missing = get_settings().missing_youcam()
     if missing:
         raise HTTPException(status_code=503, detail=missing)
-    source = session.scalar(select(Asset).where(Asset.workspace_id == workspace.id, Asset.kind == "tryon_source"))
+    source = _latest_asset(session, workspace, "tryon_source")
     if source is None:
         raise HTTPException(status_code=400, detail="Upload a separate suitable try-on photograph first.")
     request = TryOnRequest(
@@ -771,23 +793,35 @@ def delete_workspace(
 
     workspace = _workspace(session, principal)
     owner = principal.owner_id
+    for garment in session.scalars(select(Garment).where(Garment.owner_id == owner)).all():
+        garment.merged_into_id = None
+        garment.crop_asset_id = None
+    for asset in session.scalars(select(Asset).where(Asset.owner_id == owner)).all():
+        asset.parent_asset_id = None
+        asset.consent_id = None
+    for analysis in session.scalars(select(Analysis).where(Analysis.owner_id == owner)).all():
+        analysis.job_id = None
+    session.flush()
     for model in (
-        TryOnRequest,
         UsageLedger,
+        ProviderTask,
         Feedback,
         Basket,
         OutfitCandidate,
+        OutfitCluster,
+        TryOnRequest,
         Analysis,
         CartItem,
         Product,
         GarmentObservation,
         Garment,
         Asset,
+        Consent,
         Job,
+        IdempotencyRecord,
         Workspace,
     ):
-        for row in session.scalars(select(model).where(model.owner_id == owner)).all():
-            session.delete(row)
+        _delete_owned(session, model, owner)
     delete_prefix(owner)
     session.commit()
     return {
