@@ -14,13 +14,21 @@ import { AlgorithmCompare, BudgetFrontier, UnlockRanking } from "@/components/gr
 import { CombinationHub } from "@/components/graphs/hub";
 import { Logo } from "@/components/logo";
 
-async function pollJob(jobId: string) {
+async function pollJob(jobId: string, onTick?: (job: { status: string }) => void) {
+  const started = Date.now();
   for (let i = 0; i < 90; i += 1) {
     const job = await api.job(jobId);
+    onTick?.(job);
     if (job.status === "succeeded" || job.status === "failed") return job;
+    const waited = Date.now() - started;
+    if (job.status === "queued" && waited > 45_000) {
+      throw new Error(
+        "No worker claimed this job. Redeploy the API so start-api.sh runs the worker, and set GEMINI_API_KEY on that service.",
+      );
+    }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
-  throw new Error("Job timed out waiting for the persistent worker. Confirm the worker process is running.");
+  throw new Error("Job timed out waiting for the worker or Gemini. Confirm GEMINI_API_KEY and that the API container is running the worker.");
 }
 
 function money(minor: number, currency: string) {
@@ -109,7 +117,15 @@ export function Studio() {
             refresh();
             try {
               const job = await api.extract(uploaded.id);
-              const extracted = await pollJob(job.job_id);
+              const extracted = await pollJob(job.job_id, (tick) => {
+                const message =
+                  tick.status === "leased"
+                    ? "Gemini is reading the photo…"
+                    : "Waiting for the worker…";
+                setPendingPhotos((current) =>
+                  current.map((item) => (item.key === key ? { ...item, message } : item)),
+                );
+              });
               if (extracted.status === "failed") {
                 throw new Error(extracted.error_safe || "Extraction failed.");
               }
@@ -329,7 +345,7 @@ export function Studio() {
                           {item.status === "uploading"
                             ? "Uploading…"
                             : item.status === "extracting"
-                              ? "Finding garments…"
+                              ? item.message || "Finding garments…"
                               : item.status === "error"
                                 ? item.message || "Could not extract"
                                 : "Uploaded"}
