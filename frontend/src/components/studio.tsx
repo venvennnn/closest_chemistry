@@ -1,17 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   api,
   type AnalysisView,
   type GarmentView,
   type ProductView,
-  type WorkspaceView,
 } from "@/lib/api";
 import { AuthImage } from "@/components/auth-image";
-import { AlgorithmCompare, BudgetFrontier, SynergyMatrix, UnlockRanking } from "@/components/graphs/charts";
-import { Constellation } from "@/components/graphs/constellation";
+import { AlgorithmCompare, BudgetFrontier, UnlockRanking } from "@/components/graphs/charts";
+import { CombinationHub } from "@/components/graphs/hub";
 import { Logo } from "@/components/logo";
 
 async function pollJob(jobId: string) {
@@ -27,6 +26,8 @@ function money(minor: number, currency: string) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
 }
 
+type Tab = "closet" | "bag" | "saved" | "how";
+
 export function Studio() {
   const queryClient = useQueryClient();
   const workspace = useQuery({ queryKey: ["workspace"], queryFn: () => api.workspace() });
@@ -40,7 +41,9 @@ export function Studio() {
   });
   const feedback = useQuery({ queryKey: ["feedback"], queryFn: () => api.feedbackSummary() });
 
-  const [tab, setTab] = useState<"wardrobe" | "discover" | "compare" | "saved">("wardrobe");
+  const [tab, setTab] = useState<Tab>("closet");
+  const [closetFilter, setClosetFilter] = useState<"all" | "top" | "bottom" | "dress" | "outerwear" | "footwear">("all");
+  const [centerMode, setCenterMode] = useState<"connections" | "cards">("connections");
   const [budget, setBudget] = useState(25000);
   const [occasion, setOccasion] = useState("any");
   const [footwear, setFootwear] = useState(false);
@@ -48,15 +51,9 @@ export function Studio() {
   const [error, setError] = useState<string | null>(null);
   const [tryonLabel, setTryonLabel] = useState<string | null>(null);
   const [tryonAsset, setTryonAsset] = useState<string | null>(null);
+  const [showPurchase, setShowPurchase] = useState(false);
 
-  useEffect(() => {
-    if (analysis.data?.budget_minor) setBudget(analysis.data.budget_minor);
-  }, [analysis.data?.budget_minor]);
-
-  const refresh = () => {
-    queryClient.invalidateQueries();
-  };
-
+  const refresh = () => queryClient.invalidateQueries();
   const selectedGarment = garments.data?.items.find((item) => item.id === selectedId);
   const selectedProduct = products.data?.items.find((item) => item.id === selectedId);
   const result = analysis.data?.result;
@@ -120,275 +117,510 @@ export function Studio() {
     onError: (err: Error) => setError(err.message),
   });
 
-  if (workspace.isError) {
-    return <p className="p-10 text-coral">{(workspace.error as Error).message}</p>;
-  }
-  if (!workspace.data) return <p className="p-10 text-muted">Loading workspace…</p>;
+  const owned = (garments.data?.items || []).filter((item) => item.source_kind === "wardrobe");
+  const filteredOwned =
+    closetFilter === "all" ? owned : owned.filter((item) => item.category === closetFilter);
+  const bag = products.data?.items || [];
+  const qualifiedLooks = (result?.outfits || []).filter((item) => item.qualified).slice(0, 6);
 
-  const empty = workspace.data.onboarding_required && !workspace.data.consent;
+  const closetFilters = useMemo(() => {
+    const chips: Array<{ id: typeof closetFilter; label: string }> = [
+      { id: "all", label: "All" },
+      { id: "top", label: "Tops" },
+      { id: "bottom", label: "Bottoms" },
+    ];
+    if (owned.some((item) => item.category === "dress")) chips.push({ id: "dress", label: "Dresses" });
+    if (owned.some((item) => item.category === "outerwear")) chips.push({ id: "outerwear", label: "Outerwear" });
+    if (owned.some((item) => item.category === "footwear")) chips.push({ id: "footwear", label: "Shoes" });
+    return chips;
+  }, [owned]);
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="grid grid-cols-[220px_1fr_340px] items-center border-b border-[#f4f4f4] px-5 py-4">
+    <div className="min-h-screen bg-cream">
+      <header className="flex items-center justify-between px-6 py-4 lg:px-8">
         <Logo />
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-pink">Hot pink / the wardrobe canvas</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Discover what clicks in your closet.</h1>
-          <p className="text-sm text-muted">Explore how a single purchase can unlock rule-qualified outfit options with clothes you already own.</p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span>Budget for new items</span>
-            <strong>{money(budget, workspace.data.currency || "USD")}</strong>
-          </div>
-          <input type="range" min={0} max={50000} step={500} value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="w-full accent-pink" />
-          <label className="flex cursor-pointer items-center justify-end gap-2 text-sm text-pink">
-            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => handleFiles("outfit", event.target.files)} />
-            Upload outfit photos
-          </label>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-[88px_1fr_340px]">
-        <nav className="flex flex-col items-center gap-6 border-r border-[#f4f4f4] py-8 text-[11px] text-muted">
-          {[
-            ["wardrobe", "Wardrobe"],
-            ["discover", "Discover"],
-            ["compare", "Compare"],
-            ["saved", "Saved"],
-          ].map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id as typeof tab)} className={tab === id ? "text-pink" : ""}>
+        <nav className="hidden items-center gap-8 text-sm text-muted md:flex">
+          {(
+            [
+              ["closet", "Your closet"],
+              ["bag", "Shopping bag"],
+              ["saved", "Saved looks"],
+              ["how", "How it works"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={tab === id ? "font-medium text-ink underline decoration-pink decoration-2 underline-offset-[10px]" : "hover:text-ink"}
+            >
               {label}
             </button>
           ))}
         </nav>
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f3d0c4] text-xs font-medium text-ink">
+          You
+        </span>
+      </header>
 
-        <section className="min-h-[640px] px-6 py-5">
-          {error && <p className="mb-4 rounded-xl bg-pink-soft px-3 py-2 text-sm text-pink">{error}</p>}
-          {empty || !workspace.data.consent ? (
-            <Onboarding workspace={workspace.data} onDone={refresh} onError={setError} />
-          ) : tab === "wardrobe" ? (
-            <WardrobeDesk
-              garments={garments.data?.items || []}
-              products={products.data?.items || []}
-              hasTryOn={workspace.data.has_tryon_photo}
-              onRefresh={refresh}
-              onError={setError}
-              onUpload={handleFiles}
-            />
-          ) : tab === "compare" ? (
-            <div className="grid gap-8 lg:grid-cols-2">
-              {result ? (
-                <>
-                  <UnlockRanking result={result} />
-                  <BudgetFrontier result={result} />
-                  <AlgorithmCompare result={result} />
-                </>
-              ) : (
-                <EmptyGraph label="Run an analysis to populate comparison charts from persisted results." />
-              )}
-            </div>
-          ) : tab === "saved" ? (
-            <FeedbackPanel analysis={analysis.data} onRefresh={refresh} />
-          ) : (
-            <>
-              <Constellation
-                garments={garments.data?.items || []}
-                edges={result?.edges || []}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                />
-              {selectedOutfit && (
-                <div className="mt-4 max-w-sm rounded-2xl border border-[#f1f1f1] p-4 shadow-sm">
-                  <p className="text-sm font-semibold">{selectedGarment?.display_name || "Selected look"}</p>
-                  <p className="text-xs text-muted">Template {String(selectedOutfit.template)}. Compatibility is not approval.</p>
-                  <button className="mt-2 text-sm text-pink" onClick={() => setTab("saved")}>
-                    View outfit →
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </section>
+      <section className="flex flex-wrap items-end justify-between gap-4 px-6 pb-5 lg:px-8">
+        <div>
+          <h1 className="font-display text-[40px] leading-tight font-semibold tracking-tight text-ink">
+            Find your next great combination.
+          </h1>
+          <p className="mt-1 text-sm text-muted">See what each purchase adds to the clothes you already own.</p>
+        </div>
+        <div className="flex gap-3">
+          <label className="cursor-pointer rounded-full bg-pink px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(255,45,139,0.28)]">
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => handleFiles("outfit", event.target.files)} />
+            + Add outfit photos
+          </label>
+          <button
+            onClick={() => {
+              setTab("bag");
+              setShowPurchase(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-full border border-pink bg-white px-5 py-2.5 text-sm font-medium text-pink"
+          >
+            <BagIcon />
+            Add a purchase
+          </button>
+        </div>
+      </section>
 
-        <aside className="border-l border-[#f4f4f4] p-5">
-          {selectedProduct || selectedGarment ? (
-            <SelectedCard
-              garment={selectedGarment}
-              product={selectedProduct}
-              result={result}
-            />
-          ) : (
-            <p className="text-sm text-muted">Select a garment or candidate to inspect evidence. Nothing is prefilled.</p>
-          )}
-          <div className="mt-6">
-            <p className="text-sm font-semibold">Try it on</p>
-            <p className="text-xs text-muted">Live YouCam only. Cached results stay labelled. Crops used for counting may be unsuitable VTO references.</p>
-            {tryonAsset && (
-              <div className="mt-3">
-                <AuthImage assetId={tryonAsset} alt="Live try-on result" className="h-48 w-full rounded-2xl object-cover" />
-                <p className="mt-1 text-[11px] text-pink">{tryonLabel}</p>
-              </div>
-            )}
-            <button
-              onClick={() => liveTryOn.mutate()}
-              disabled={liveTryOn.isPending}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-pink py-3 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {liveTryOn.isPending ? "Submitting live task…" : "Generate live try-on"}
-            </button>
-          </div>
-        </aside>
-      </div>
+      {error && <p className="mx-8 mb-4 rounded-2xl bg-pink-soft px-4 py-2 text-sm text-pink">{error}</p>}
+      {workspace.isError && (
+        <p className="mx-8 mb-4 rounded-2xl bg-pink-soft px-4 py-2 text-sm text-pink">
+          {(workspace.error as Error).message.replace(/\.*$/, ".")} The canvas still loads; connect the API to persist a closet.
+        </p>
+      )}
 
-      <footer className="grid grid-cols-[1fr_340px] border-t border-[#f4f4f4]">
-        <div className="p-5">
-          {result ? <SynergyMatrix result={result} /> : <EmptyGraph label="Synergy matrix waits for a persisted analysis." />}
+      {workspace.data && !workspace.data.consent ? (
+        <Onboarding onDone={refresh} onError={setError} />
+      ) : tab === "how" ? (
+        <HowItWorks />
+      ) : tab === "saved" ? (
+        <div className="px-6 pb-10 lg:px-8">
+          <FeedbackPanel analysis={analysis.data} onRefresh={refresh} />
           {feedback.data && (
-            <p className="mt-3 text-xs text-muted">
+            <p className="mt-4 text-xs text-muted">
               Approvals {feedback.data.approved} / rejections {feedback.data.rejected} (denominator {feedback.data.denominator}).
             </p>
           )}
         </div>
-        <div className="border-l border-[#f4f4f4] p-5">
-          <h3 className="text-sm font-semibold">Shop recommended additions</h3>
-          <p className="mb-3 text-xs text-muted">Only items you added. No fabricated catalogue.</p>
-          <div className="grid grid-cols-2 gap-3">
-            {products.data?.items.map((item) => (
-              <button key={item.id} onClick={() => setSelectedId(item.id)} className="text-left">
-                <AuthImage assetId={item.image_asset_id} alt={item.title} className="h-28 w-full rounded-xl object-cover" />
-                <p className="mt-1 text-xs font-medium">{item.title}</p>
-                <p className="text-xs text-muted">{money(item.price_minor, item.currency)}</p>
+      ) : tab === "bag" ? (
+        <div className="grid gap-6 px-6 pb-10 lg:grid-cols-[1fr_360px] lg:px-8">
+          <BagGrid products={bag} onSelect={setSelectedId} />
+          <PurchaseForm
+            open={showPurchase || bag.length === 0}
+            products={bag}
+            onRefresh={refresh}
+            onError={setError}
+            budget={budget}
+            setBudget={setBudget}
+            occasion={occasion}
+            setOccasion={setOccasion}
+            footwear={footwear}
+            setFootwear={setFootwear}
+            currency={workspace.data?.currency || "USD"}
+            analyzing={runAnalysis.isPending}
+            onAnalyze={() => runAnalysis.mutate()}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-5 px-6 pb-5 lg:px-8 xl:grid-cols-[232px_minmax(0,1fr)_292px]">
+            <aside className="space-y-5">
+              <div>
+                <h2 className="mb-3 font-display text-[22px] font-semibold tracking-tight">Your closet</h2>
+                <div className="mb-3 flex flex-wrap gap-1">
+                  {closetFilters.map((chip) => (
+                    <button
+                      key={chip.id}
+                      onClick={() => setClosetFilter(chip.id)}
+                      className={`rounded-full px-3 py-1 text-xs ${closetFilter === chip.id ? "bg-pink text-white" : "bg-white text-muted"}`}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {filteredOwned.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setSelectedId(item.id)}
+                      className={`rounded-[22px] bg-white p-2 text-left shadow-[0_6px_18px_rgba(40,20,20,0.04)] ${selectedId === item.id ? "ring-2 ring-pink" : ""}`}
+                    >
+                      <AuthImage assetId={item.crop_asset_id} alt={item.display_name} className="h-[88px] w-full rounded-2xl object-cover" />
+                      <p className="mt-1.5 truncate text-center text-[11px]">{item.display_name || item.category}</p>
+                      {item.status !== "confirmed" && (
+                        <button
+                          className="block w-full text-center text-[10px] text-pink"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            api
+                              .patchGarment(item.id, {
+                                display_name: item.display_name,
+                                category: item.category,
+                                colour_family: item.colour_family || item.colour,
+                                pattern_family: item.pattern_family || "solid",
+                                formality_min: item.formality_min ?? 30,
+                                formality_max: item.formality_max ?? 70,
+                                confirm: true,
+                              })
+                              .then(refresh)
+                              .catch((err: Error) => setError(err.message));
+                          }}
+                        >
+                          Confirm
+                        </button>
+                      )}
+                    </button>
+                  ))}
+                  <label className="col-span-2 flex min-h-[72px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-pink/45 bg-white/70 text-center text-[11px] font-medium text-pink">
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => handleFiles("outfit", event.target.files)} />
+                    + Add a garment
+                  </label>
+                </div>
+              </div>
+              <div className="rounded-[28px] bg-[#fde8f1] p-4">
+                <div className="mb-3 flex items-center justify-between text-sm font-semibold">
+                  <span>Shopping bag</span>
+                  <button className="text-muted" onClick={() => setTab("bag")} aria-label="Open shopping bag">
+                    ›
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {bag.slice(0, 4).map((item) => (
+                    <button key={item.id} onClick={() => setSelectedId(item.id)} className="text-left">
+                      <AuthImage assetId={item.image_asset_id} alt={item.title} className="h-[72px] w-full rounded-2xl bg-white object-cover" />
+                      <p className="mt-1 truncate text-center text-[11px]">{item.title}</p>
+                    </button>
+                  ))}
+                  {!bag.length && <p className="col-span-2 text-[11px] text-muted">No candidates yet. Add a real purchase.</p>}
+                </div>
+                <button className="mt-3 text-[12px] font-medium text-pink" onClick={() => setTab("bag")}>
+                  Compare purchases →
+                </button>
+              </div>
+            </aside>
+
+            <section className="rounded-[32px] bg-white p-5 shadow-[0_10px_40px_rgba(40,20,20,0.04)]">
+              <div className="mb-2 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-[28px] font-semibold tracking-tight">What works together</h2>
+                  <p className="text-sm text-muted">Styling suggestions</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex rounded-full bg-cream p-1 text-xs">
+                    <button onClick={() => setCenterMode("connections")} className={`rounded-full px-3 py-1 ${centerMode === "connections" ? "bg-pink text-white" : "text-muted"}`}>
+                      Connections
+                    </button>
+                    <button onClick={() => setCenterMode("cards")} className={`rounded-full px-3 py-1 ${centerMode === "cards" ? "bg-pink text-white" : "text-muted"}`}>
+                      Outfit cards
+                    </button>
+                  </div>
+                  <div className="hidden text-[10px] text-muted lg:block">
+                    <p><span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#d9d4d2]" />Owned</p>
+                    <p><span className="mr-1 inline-block h-2 w-2 rounded-full bg-pink" />Considering</p>
+                  </div>
+                </div>
+              </div>
+              {centerMode === "connections" ? (
+                <CombinationHub
+                  garments={owned}
+                  products={bag}
+                  result={result}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onSeeOutfits={() => setCenterMode("cards")}
+                />
+              ) : null}
+              {centerMode === "connections" ? (
+                <div className="mt-2">
+                  <p className="mb-2 text-sm font-semibold">Complete outfit suggestions</p>
+                  <OutfitCards looks={qualifiedLooks} garments={owned} products={bag} />
+                  <p className="mt-3 text-center text-[11px] text-muted">Connections are suggestions. You decide what works.</p>
+                </div>
+              ) : (
+                <OutfitCards looks={qualifiedLooks} garments={owned} products={bag} />
+              )}
+            </section>
+
+            <aside className="rounded-[32px] bg-white p-4 shadow-[0_10px_40px_rgba(40,20,20,0.04)]">
+              <h2 className="font-display text-[22px] font-semibold tracking-tight">Try the combination</h2>
+              <div className="relative mt-3 overflow-hidden rounded-[24px] bg-cream">
+                {tryonAsset ? (
+                  <AuthImage assetId={tryonAsset} alt="Live try-on result" className="h-64 w-full object-cover" />
+                ) : (
+                  <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-muted">
+                    Live YouCam preview appears here after a successful task. Nothing is prefilled.
+                  </div>
+                )}
+                {tryonLabel && (
+                  <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] text-muted">
+                    {tryonLabel}
+                  </span>
+                )}
+              </div>
+              {qualifiedLooks.length > 0 && (
+                <div className="mt-3 flex justify-center gap-2">
+                  {qualifiedLooks.slice(0, 2).map((look, index) => (
+                    <button
+                      key={String(look.combination_id)}
+                      onClick={() => {
+                        const ids = look.garment_ids as string[];
+                        setSelectedId(ids.find((id) => bag.some((item) => item.id === id)) || ids[0] || null);
+                      }}
+                      className={`overflow-hidden rounded-2xl ${index === 0 ? "ring-2 ring-pink" : "ring-1 ring-line"}`}
+                    >
+                      <AuthImage
+                        assetId={
+                          owned.find((item) => (look.garment_ids as string[]).includes(item.id))?.crop_asset_id ||
+                          bag.find((item) => (look.garment_ids as string[]).includes(item.id))?.image_asset_id
+                        }
+                        alt=""
+                        className="h-14 w-14 object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <label className="mt-3 block cursor-pointer text-center text-[11px] text-pink">
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => handleFiles("tryon_source", event.target.files)} />
+                {workspace.data?.has_tryon_photo ? "Replace try-on photo" : "Upload a try-on photo"}
+              </label>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
+                <div>
+                  <p className="mb-1 text-muted">Already yours</p>
+                  <div className="flex gap-1">
+                    {owned.slice(0, 3).map((item) => (
+                      <AuthImage key={item.id} assetId={item.crop_asset_id} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                    ))}
+                    {!owned.length && <span className="text-[10px] text-muted">None yet</span>}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-muted">Considering</p>
+                  <div className="flex gap-1">
+                    {bag.slice(0, 2).map((item) => (
+                      <AuthImage key={item.id} assetId={item.image_asset_id} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                    ))}
+                    {!bag.length && <span className="text-[10px] text-muted">None yet</span>}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => liveTryOn.mutate()}
+                disabled={liveTryOn.isPending}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-pink py-3 text-sm font-medium text-white shadow-[0_8px_20px_rgba(255,45,139,0.28)] disabled:opacity-50"
+              >
+                <SparkleIcon />
+                {liveTryOn.isPending ? "Submitting live task…" : "Generate live try-on"}
               </button>
-            ))}
+              <p className="mt-2 text-center text-[11px] text-muted">Preview styling, not physical fit.</p>
+              <div className="mt-3 flex gap-2 text-xs">
+                <button
+                  className="flex-1 rounded-full border border-line py-2 disabled:opacity-40"
+                  disabled={!analysis.data || !selectedOutfit}
+                  onClick={() =>
+                    selectedOutfit &&
+                    analysis.data &&
+                    api.feedback({ analysis_id: analysis.data.id, target_kind: "outfit", target_id: selectedOutfit.combination_id, verdict: "approve" }).then(refresh)
+                  }
+                >
+                  Keep this option
+                </button>
+                <button
+                  className="flex-1 rounded-full border border-line py-2 disabled:opacity-40"
+                  disabled={!analysis.data || !selectedOutfit}
+                  onClick={() =>
+                    selectedOutfit &&
+                    analysis.data &&
+                    api.feedback({ analysis_id: analysis.data.id, target_kind: "outfit", target_id: selectedOutfit.combination_id, verdict: "reject" }).then(refresh)
+                  }
+                >
+                  Not my style
+                </button>
+              </div>
+              {(selectedProduct || selectedGarment) && (
+                <p className="mt-3 text-[11px] text-muted">
+                  {selectedProduct ? `${selectedProduct.title} · ${money(selectedProduct.price_minor, selectedProduct.currency)}` : selectedGarment?.display_name}
+                </p>
+              )}
+            </aside>
           </div>
-          <div className="mt-4 flex gap-2">
-            <select value={occasion} onChange={(event) => setOccasion(event.target.value)} className="flex-1 rounded-xl border border-[#eee] px-2 py-2 text-sm">
-              <option value="any">Any occasion</option>
-              <option value="casual">Casual</option>
-              <option value="smart_casual">Smart casual</option>
-              <option value="office">Office</option>
-              <option value="evening">Evening</option>
-            </select>
-            <label className="flex items-center gap-1 text-xs">
-              <input type="checkbox" checked={footwear} onChange={(event) => setFootwear(event.target.checked)} />
-              Require footwear
-            </label>
-          </div>
-          <button onClick={() => runAnalysis.mutate()} disabled={runAnalysis.isPending} className="mt-3 w-full rounded-full bg-ink py-3 text-sm text-white">
-            {runAnalysis.isPending ? "Computing exact basket…" : "Compute rankings"}
-          </button>
-          <button
-            className="mt-4 text-[11px] text-pink"
-            onClick={async () => {
-              await api.deleteWorkspace();
-              refresh();
-            }}
-          >
-            Start over
-          </button>
-        </div>
-      </footer>
-    </div>
-  );
-}
 
-function EmptyGraph({ label }: { label: string }) {
-  return <div className="rounded-2xl border border-dashed border-[#eee] p-8 text-sm text-muted">{label}</div>;
-}
-
-function SelectedCard({
-  garment,
-  product,
-  result,
-}: {
-  garment?: GarmentView;
-  product?: ProductView;
-  result?: AnalysisView["result"];
-}) {
-  const title = product?.title || garment?.display_name || "";
-  const standalone = result?.standalone.find((row) => row.product_id === (product?.id || garment?.id));
-  return (
-    <div>
-      <AuthImage
-        assetId={product?.image_asset_id || garment?.crop_asset_id}
-        alt={title}
-        className="h-56 w-full rounded-2xl object-cover"
-      />
-      <h2 className="mt-4 text-xl font-semibold">{title}</h2>
-      {product && <p className="text-lg">{money(product.price_minor, product.currency)}</p>}
-      <p className="mt-2 text-sm text-muted">
-        {garment?.colour || product?.category}. Analysis eligibility is separate from YouCam eligibility.
-      </p>
-      {standalone && (
-        <ul className="mt-4 space-y-1 text-sm">
-          <li>Standalone yield: {String(standalone.standalone_f)}</li>
-          <li>Basket-conditional: {String(standalone.basket_conditional_f)}</li>
-        </ul>
-      )}
-      {product?.cart_item_id && (
-        <div className="mt-4 flex gap-2 text-xs">
-          <button className="rounded-full border px-3 py-1" onClick={() => api.patchCart(product.cart_item_id!, { pinned: !product.pinned })}>
-            {product.pinned ? "Unpin" : "Pin this item"}
-          </button>
-          <button className="rounded-full border px-3 py-1" onClick={() => api.patchCart(product.cart_item_id!, { excluded: !product.excluded })}>
-            {product.excluded ? "Include" : "Exclude"}
-          </button>
-        </div>
+          <section className="mx-6 mb-10 rounded-[32px] bg-white p-5 lg:mx-8">
+            <h2 className="font-display text-[26px] font-semibold tracking-tight">Choose what earns its place.</h2>
+            <div className="mt-4 grid gap-6 lg:grid-cols-3">
+              {result ? (
+                <>
+                  <div>
+                    <UnlockRanking result={result} />
+                    <button onClick={() => setCenterMode("cards")} className="mt-2 text-[12px] font-medium text-pink">
+                      Explore the underlying outfits →
+                    </button>
+                  </div>
+                  <BudgetFrontier result={result} />
+                  <div>
+                    <AlgorithmCompare result={result} />
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex gap-1">
+                        {bag.slice(0, 2).map((item) => (
+                          <AuthImage key={item.id} assetId={item.image_asset_id} alt={item.title} className="h-12 w-12 rounded-xl object-cover" />
+                        ))}
+                      </div>
+                      <button onClick={() => setTab("bag")} className="rounded-full bg-pink-soft px-4 py-2 text-xs font-medium text-pink">
+                        Compare baskets →
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="col-span-3 text-sm text-muted">
+                  Charts use persisted analysis results only. Add 4–10 real candidates, then compute rankings.
+                </p>
+              )}
+            </div>
+          </section>
+        </>
       )}
     </div>
   );
 }
 
-function Onboarding({
-  workspace,
-  onDone,
-  onError,
-}: {
-  workspace: WorkspaceView;
-  onDone: () => void;
-  onError: (message: string) => void;
-}) {
-  async function grant() {
-    try {
-      await api.consent();
-      onDone();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Consent failed.");
-    }
-  }
-  return (
-    <div className="mx-auto max-w-xl py-16 text-center">
-      <h2 className="text-3xl font-semibold">Start with your own photographs</h2>
-      <p className="mt-3 text-muted">
-        External image processing (Gemini extraction and optional YouCam try-on) needs explicit consent. There is no
-        preloaded wardrobe, catalogue, or generated preview.
-      </p>
-      {!workspace.consent && (
-        <button onClick={grant} className="mt-6 rounded-full bg-pink px-6 py-3 text-white">
-          I consent to external image processing
-        </button>
-      )}
-    </div>
-  );
-}
-
-function WardrobeDesk({
+function OutfitCards({
+  looks,
   garments,
   products,
-  hasTryOn,
-  onRefresh,
-  onError,
-  onUpload,
 }: {
+  looks: Array<Record<string, unknown>>;
   garments: GarmentView[];
   products: ProductView[];
-  hasTryOn: boolean;
+}) {
+  const [page, setPage] = useState(0);
+  const assets = new Map<string, string | null | undefined>();
+  garments.forEach((item) => assets.set(item.id, item.crop_asset_id));
+  products.forEach((item) => assets.set(item.id, item.image_asset_id));
+  if (!looks.length) {
+    return (
+      <p className="rounded-[24px] bg-cream px-4 py-10 text-center text-sm text-muted">
+        Qualified looks from a persisted analysis appear here.
+      </p>
+    );
+  }
+  const pageSize = 2;
+  const maxPage = Math.max(0, Math.ceil(looks.length / pageSize) - 1);
+  const visible = looks.slice(page * pageSize, page * pageSize + pageSize);
+  return (
+    <div className="relative">
+      <div className="grid gap-3 md:grid-cols-2">
+        {visible.map((look, index) => (
+          <article key={String(look.combination_id)} className="rounded-[24px] bg-cream p-4">
+            <p className="font-display text-xl italic tracking-tight capitalize">
+              {String(look.template || `Look ${page * pageSize + index + 1}`).replace(/_/g, " ")}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(look.garment_ids as string[]).slice(0, 5).map((id) => (
+                <AuthImage key={id} assetId={assets.get(id)} alt="" className="h-20 w-[72px] rounded-2xl bg-white object-cover" />
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+      {looks.length > pageSize && (
+        <>
+          <button
+            type="button"
+            aria-label="Previous looks"
+            disabled={page === 0}
+            onClick={() => setPage((value) => Math.max(0, value - 1))}
+            className="absolute top-1/2 -left-3 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-muted shadow disabled:opacity-30"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            aria-label="Next looks"
+            disabled={page >= maxPage}
+            onClick={() => setPage((value) => Math.min(maxPage, value + 1))}
+            className="absolute top-1/2 -right-3 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-muted shadow disabled:opacity-30"
+          >
+            ›
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function BagIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 8h12l-1 12H7L6 8Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M9 8V7a3 3 0 0 1 6 0v1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 3.2 13.2 8 18 9.2 13.2 10.4 12 15.2 10.8 10.4 6 9.2 10.8 8 12 3.2Z" />
+      <path d="M18.5 13.5 19.2 16 21.7 16.7 19.2 17.4 18.5 19.9 17.8 17.4 15.3 16.7 17.8 16 18.5 13.5Z" />
+    </svg>
+  );
+}
+
+function BagGrid({ products, onSelect }: { products: ProductView[]; onSelect: (id: string) => void }) {
+  return (
+    <div className="rounded-[32px] bg-white p-5">
+      <h2 className="font-display text-2xl font-semibold tracking-tight">Shopping bag</h2>
+      <p className="text-sm text-muted">Only items you added. No fabricated catalogue.</p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        {products.map((item) => (
+          <button key={item.id} onClick={() => onSelect(item.id)} className="text-left">
+            <AuthImage assetId={item.image_asset_id} alt={item.title} className="h-40 w-full rounded-2xl object-cover" />
+            <p className="mt-2 text-sm font-medium">{item.title}</p>
+            <p className="text-xs text-muted">
+              {money(item.price_minor, item.currency)} · {item.pinned ? "pinned" : item.excluded ? "excluded" : "in bag"}
+            </p>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PurchaseForm({
+  open,
+  products,
+  onRefresh,
+  onError,
+  budget,
+  setBudget,
+  occasion,
+  setOccasion,
+  footwear,
+  setFootwear,
+  currency,
+  analyzing,
+  onAnalyze,
+}: {
+  open: boolean;
+  products: ProductView[];
   onRefresh: () => void;
   onError: (message: string) => void;
-  onUpload: (kind: "outfit" | "tryon_source" | "product", files: FileList | null) => Promise<void>;
+  budget: number;
+  setBudget: (value: number) => void;
+  occasion: string;
+  setOccasion: (value: string) => void;
+  footwear: boolean;
+  setFootwear: (value: boolean) => void;
+  currency: string;
+  analyzing: boolean;
+  onAnalyze: () => void;
 }) {
-  const [mergeTarget, setMergeTarget] = useState<string>("");
   const [draft, setDraft] = useState<Record<string, string>>({
     title: "",
     price_major: "",
@@ -396,171 +628,154 @@ function WardrobeDesk({
     category: "top",
     colour_family: "",
     pattern_family: "solid",
-    formality_min: "30",
-    formality_max: "70",
   });
   const [productFile, setProductFile] = useState<File | null>(null);
-
-  async function confirm(item: GarmentView) {
-    try {
-      await api.patchGarment(item.id, {
-        display_name: item.display_name,
-        category: item.category,
-        colour_family: item.colour_family || item.colour,
-        pattern_family: item.pattern_family || "solid",
-        formality_min: item.formality_min ?? 30,
-        formality_max: item.formality_max ?? 70,
-        confirm: true,
-      });
-      onRefresh();
-    } catch (err) {
-      onError(err instanceof Error ? err.message : "Could not confirm garment.");
-    }
+  if (!open && products.length) {
+    return (
+      <div className="rounded-[32px] bg-white p-5">
+        <label className="text-sm">Budget {money(budget, currency)}</label>
+        <input type="range" min={0} max={50000} step={500} value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="mt-2 w-full accent-pink" />
+        <button onClick={onAnalyze} disabled={analyzing} className="mt-4 w-full rounded-full bg-ink py-3 text-sm text-white">
+          {analyzing ? "Computing exact basket…" : "Compute rankings"}
+        </button>
+      </div>
+    );
   }
-
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap gap-3 text-sm">
-        <label className="rounded-full bg-pink-soft px-4 py-2 text-pink">
-          <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => onUpload("outfit", event.target.files)} />
-          Add outfit photos
-        </label>
-        <label className="rounded-full border border-[#eee] px-4 py-2">
-          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => onUpload("tryon_source", event.target.files)} />
-          {hasTryOn ? "Replace try-on photo" : "Upload try-on photo"}
-        </label>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        {garments
-          .filter((item) => item.source_kind === "wardrobe")
-          .map((item) => (
-            <article key={item.id} className="rounded-2xl border border-[#f1f1f1] p-3">
-              <AuthImage assetId={item.crop_asset_id} alt={item.display_name} className="h-40 w-full rounded-xl object-cover" />
-              <input
-                className="mt-2 w-full text-sm font-medium"
-                defaultValue={item.display_name}
-                onBlur={(event) => api.patchGarment(item.id, { display_name: event.target.value }).then(onRefresh)}
-              />
-              <p className="text-xs text-muted">
-                {item.category} · {item.status}
-                {item.needs_review ? " · needs review" : ""}
-              </p>
-              <div className="mt-2 flex gap-2">
-                {item.status !== "confirmed" && (
-                  <button className="text-xs text-pink" onClick={() => confirm(item)}>
-                    Confirm
-                  </button>
-                )}
-                <button className="text-xs text-muted" onClick={() => setMergeTarget(item.id)}>
-                  Merge into this
-                </button>
-              </div>
-            </article>
-          ))}
-      </div>
-      {mergeTarget && (
-        <p className="text-xs text-muted">
-          Merges require confirmation and never run from colour alone. Select another card then
-          <button
-            className="ml-1 text-pink"
-            onClick={async () => {
-              const others = garments.filter((item) => item.id !== mergeTarget && item.status !== "merged").map((item) => item.id);
-              if (others[0]) await api.merge(mergeTarget, [others[0]]);
-              setMergeTarget("");
-              onRefresh();
-            }}
-          >
-            confirm merge with the next garment
-          </button>
-          .
-        </p>
-      )}
-      <form
-        className="grid gap-3 rounded-2xl border border-[#f1f1f1] p-4 md:grid-cols-2"
-        onSubmit={async (event) => {
-          event.preventDefault();
-          if (!productFile) {
-            onError("Upload-and-enter-price is the supported production path. Attach the product image.");
-            return;
-          }
-          try {
-            await api.createProduct(draft, productFile);
-            setDraft({ title: "", price_major: "", currency: draft.currency, category: "top" });
-            setProductFile(null);
-            onRefresh();
-          } catch (err) {
-            onError(err instanceof Error ? err.message : "Product create failed.");
-          }
+    <form
+      className="space-y-3 rounded-[32px] bg-white p-5"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!productFile) {
+          onError("Upload-and-enter-price is the supported production path. Attach the product image.");
+          return;
+        }
+        try {
+          await api.createProduct(draft, productFile);
+          setDraft({ title: "", price_major: "", currency: draft.currency, category: "top", colour_family: "", pattern_family: "solid" });
+          setProductFile(null);
+          onRefresh();
+        } catch (err) {
+          onError(err instanceof Error ? err.message : "Product create failed.");
+        }
+      }}
+    >
+      <h3 className="font-display text-lg font-semibold">Add a purchase</h3>
+      <input className="w-full rounded-2xl border border-line px-3 py-2" placeholder="Title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} required />
+      <input className="w-full rounded-2xl border border-line px-3 py-2" placeholder="Price" value={draft.price_major} onChange={(event) => setDraft({ ...draft, price_major: event.target.value })} required />
+      <select className="w-full rounded-2xl border border-line px-3 py-2" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>
+        <option value="top">Top</option>
+        <option value="bottom">Bottom</option>
+        <option value="dress">Dress</option>
+        <option value="outerwear">Outerwear</option>
+        <option value="footwear">Footwear</option>
+      </select>
+      <input className="w-full rounded-2xl border border-line px-3 py-2" placeholder="Colour family" value={draft.colour_family} onChange={(event) => setDraft({ ...draft, colour_family: event.target.value })} />
+      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setProductFile(event.target.files?.[0] || null)} />
+      <button className="w-full rounded-full bg-pink py-3 text-sm text-white">Save candidate</button>
+      <p className="text-[11px] text-muted">{products.length} / 10 candidates. Shipping and tax excluded unless supplied.</p>
+      <label className="block text-sm">Budget {money(budget, currency)}</label>
+      <input type="range" min={0} max={50000} step={500} value={budget} onChange={(event) => setBudget(Number(event.target.value))} className="w-full accent-pink" />
+      <select value={occasion} onChange={(event) => setOccasion(event.target.value)} className="w-full rounded-2xl border border-line px-3 py-2 text-sm">
+        <option value="any">Any occasion</option>
+        <option value="casual">Casual</option>
+        <option value="smart_casual">Smart casual</option>
+        <option value="office">Office</option>
+        <option value="evening">Evening</option>
+      </select>
+      <label className="flex items-center gap-2 text-xs">
+        <input type="checkbox" checked={footwear} onChange={(event) => setFootwear(event.target.checked)} />
+        Require footwear
+      </label>
+      <button type="button" onClick={onAnalyze} disabled={analyzing} className="w-full rounded-full bg-ink py-3 text-sm text-white">
+        {analyzing ? "Computing exact basket…" : "Compute rankings"}
+      </button>
+      <button
+        type="button"
+        className="text-[11px] text-pink"
+        onClick={async () => {
+          await api.deleteWorkspace();
+          onRefresh();
         }}
       >
-        <h3 className="md:col-span-2 text-sm font-semibold">Add a real cart candidate</h3>
-        <input className="rounded-xl border border-[#eee] px-3 py-2" placeholder="Title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} required />
-        <input className="rounded-xl border border-[#eee] px-3 py-2" placeholder="Price (major units)" value={draft.price_major} onChange={(event) => setDraft({ ...draft, price_major: event.target.value })} required />
-        <input className="rounded-xl border border-[#eee] px-3 py-2" placeholder="USD" value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value })} />
-        <select className="rounded-xl border border-[#eee] px-3 py-2" value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })}>
-          <option value="top">Top</option>
-          <option value="bottom">Bottom</option>
-          <option value="dress">Dress</option>
-          <option value="outerwear">Outerwear</option>
-          <option value="footwear">Footwear</option>
-        </select>
-        <input className="rounded-xl border border-[#eee] px-3 py-2" placeholder="Colour family (required for analysis)" value={draft.colour_family} onChange={(event) => setDraft({ ...draft, colour_family: event.target.value })} />
-        <input className="rounded-xl border border-[#eee] px-3 py-2" placeholder="Pattern family" value={draft.pattern_family} onChange={(event) => setDraft({ ...draft, pattern_family: event.target.value })} />
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setProductFile(event.target.files?.[0] || null)} />
-        <button className="rounded-full bg-pink px-4 py-2 text-sm text-white">Save candidate</button>
-        <p className="md:col-span-2 text-xs text-muted">
-          {products.length} / 10 candidates. Shipping and tax are excluded unless you mark them included. URL fetch only reads public HTTPS JSON-LD; otherwise enter price manually.
-        </p>
-      </form>
+        Start over
+      </button>
+    </form>
+  );
+}
+
+function Onboarding({ onDone, onError }: { onDone: () => void; onError: (message: string) => void }) {
+  return (
+    <div className="mx-6 mb-10 rounded-[32px] bg-white px-8 py-16 text-center lg:mx-8">
+      <h2 className="font-display text-3xl font-semibold tracking-tight">Start with your own photographs</h2>
+      <p className="mx-auto mt-3 max-w-lg text-muted">
+        External image processing (Gemini extraction and optional YouCam try-on) needs explicit consent. There is no
+        preloaded wardrobe, catalogue, or generated preview.
+      </p>
+      <button
+        onClick={async () => {
+          try {
+            await api.consent();
+            onDone();
+          } catch (err) {
+            onError(err instanceof Error ? err.message : "Consent failed.");
+          }
+        }}
+        className="mt-6 rounded-full bg-pink px-6 py-3 text-white"
+      >
+        I consent to external image processing
+      </button>
     </div>
   );
 }
 
-function FeedbackPanel({
-  analysis,
-  onRefresh,
-}: {
-  analysis?: AnalysisView;
-  onRefresh: () => void;
-}) {
+function HowItWorks() {
+  return (
+    <div className="mx-6 mb-10 max-w-3xl space-y-4 rounded-[32px] bg-white p-8 lg:mx-8">
+      <h2 className="font-display text-3xl font-semibold tracking-tight">How it works</h2>
+      <p className="text-muted">
+        Closest Chemistry counts rule-qualified outfit options — not guaranteed wear, attractiveness, or physical fit.
+        Exact search is exact under declared compatibility rules.
+      </p>
+      <ol className="list-decimal space-y-2 pl-5 text-sm">
+        <li>Upload real outfit photographs and confirm garments before they count.</li>
+        <li>Add 4–10 real cart candidates with image, price, and category.</li>
+        <li>Compute rankings. Charts use persisted analysis results only.</li>
+        <li>Generate live try-on submits a fresh YouCam task when configured; cached results stay labelled.</li>
+      </ol>
+    </div>
+  );
+}
+
+function FeedbackPanel({ analysis, onRefresh }: { analysis?: AnalysisView; onRefresh: () => void }) {
   const outfits = analysis?.result?.outfits.filter((item) => item.qualified) || [];
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {outfits.map((outfit) => (
-        <div key={String(outfit.combination_id)} className="rounded-2xl border border-[#f1f1f1] p-4">
+        <div key={String(outfit.combination_id)} className="rounded-[28px] bg-white p-4">
           <p className="text-sm font-medium">Look {String(outfit.combination_id)}</p>
-          <p className="text-xs text-muted">{String(outfit.template)} · cluster {String(outfit.cluster_id)}</p>
+          <p className="text-xs text-muted">{String(outfit.template)}</p>
           <div className="mt-3 flex gap-2">
             <button
               className="rounded-full bg-green px-3 py-1 text-xs text-white"
               onClick={() =>
-                api.feedback({
-                  analysis_id: analysis!.id,
-                  target_kind: "outfit",
-                  target_id: outfit.combination_id,
-                  verdict: "approve",
-                }).then(onRefresh)
+                api.feedback({ analysis_id: analysis!.id, target_kind: "outfit", target_id: outfit.combination_id, verdict: "approve" }).then(onRefresh)
               }
             >
-              Approve
+              Keep this option
             </button>
             <button
-              className="rounded-full bg-coral px-3 py-1 text-xs text-white"
+              className="rounded-full border border-line px-3 py-1 text-xs"
               onClick={() =>
-                api.feedback({
-                  analysis_id: analysis!.id,
-                  target_kind: "outfit",
-                  target_id: outfit.combination_id,
-                  verdict: "reject",
-                }).then(onRefresh)
+                api.feedback({ analysis_id: analysis!.id, target_kind: "outfit", target_id: outfit.combination_id, verdict: "reject" }).then(onRefresh)
               }
             >
-              Reject
+              Not my style
             </button>
           </div>
         </div>
       ))}
-      {!outfits.length && <EmptyGraph label="Qualified looks from a persisted analysis appear here." />}
+      {!outfits.length && <p className="rounded-[28px] bg-white p-8 text-sm text-muted">Saved looks appear after you approve outfits from a real analysis.</p>}
     </div>
   );
 }

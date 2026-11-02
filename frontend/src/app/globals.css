@@ -2,36 +2,48 @@
 
 :root {
   --pink: #ff2d8b;
+  --pink-deep: #e81a78;
   --pink-soft: #ffe4f1;
-  --pink-line: #ff4da0;
+  --pink-line: #ff8fbf;
+  --cream: #fbf6f4;
+  --card: #ffffff;
   --cobalt: #245bff;
-  --green: #1fa97a;
+  --green: #9dba8c;
   --coral: #ff6b4a;
-  --ink: #111111;
-  --muted: #6b7280;
-  --line: #f1f2f4;
+  --ink: #1b1a1a;
+  --muted: #7a7270;
+  --line: #f0e7e4;
 }
 
 @theme inline {
   --color-pink: var(--pink);
+  --color-pink-deep: var(--pink-deep);
   --color-pink-soft: var(--pink-soft);
+  --color-cream: var(--cream);
+  --color-card: var(--card);
   --color-cobalt: var(--cobalt);
   --color-green: var(--green);
   --color-coral: var(--coral);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
+  --color-line: var(--line);
   --font-sans: var(--font-geist-sans);
+  --font-display: var(--font-fraunces);
 }
 
 html,
 body {
-  background: #ffffff;
+  background: var(--cream);
   color: var(--ink);
   min-height: 100%;
 }
 
 body {
   font-family: var(--font-geist-sans), Helvetica, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
 }
 
 * {
@@ -45,6 +57,8 @@ textarea {
   font: inherit;
 }
 
-.no-grid .recharts-cartesian-grid {
+.no-grid .recharts-cartesian-grid,
+.no-grid .recharts-cartesian-grid-horizontal line,
+.no-grid .recharts-cartesian-grid-vertical line {
   display: none;
 }
