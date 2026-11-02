@@ -38,6 +38,8 @@ export const api = {
     body.append("file", file);
     return request<{ id: string }>("/v1/assets", { method: "POST", body });
   },
+  assets: (kind?: string) =>
+    request<{ items: AssetView[] }>(kind ? `/v1/assets?kind=${encodeURIComponent(kind)}` : "/v1/assets"),
   extract: (assetId: string) => request<{ job_id: string }>(`/v1/assets/${assetId}/extract`, { method: "POST" }),
   job: (jobId: string) => request<JobView>(`/v1/jobs/${jobId}`),
   garments: () => request<{ items: GarmentView[] }>("/v1/garments"),
@@ -100,6 +102,15 @@ export type JobView = {
   status: string;
   error_safe: string | null;
   result: Record<string, unknown> | null;
+};
+
+export type AssetView = {
+  id: string;
+  kind: string;
+  original_filename: string;
+  mime_type: string;
+  width: number;
+  height: number;
 };
 
 export type GarmentView = {

@@ -1,40 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { API_BASE } from "@/lib/api";
 
 export function AuthImage({
   assetId,
   alt,
   className,
+  src,
 }: {
   assetId?: string | null;
   alt: string;
   className?: string;
+  src?: string | null;
 }) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!assetId) return;
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    fetch(`${API_BASE}/v1/assets/${assetId}/content`, { credentials: "include" })
-      .then((response) => (response.ok ? response.blob() : Promise.reject()))
-      .then((blob) => {
-        objectUrl = URL.createObjectURL(blob);
-        if (!cancelled) setSrc(objectUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setSrc(null);
-      });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [assetId]);
-
-  if (!assetId || !src) {
+  const [failed, setFailed] = useState(false);
+  const resolved = src || (assetId ? `${API_BASE}/v1/assets/${assetId}/content` : null);
+  if (!resolved || failed) {
     return <div className={`bg-[#f6f6f6] ${className || ""}`} aria-hidden />;
   }
-  return <img src={src} alt={alt} className={className} />;
+  return (
+    <img
+      key={resolved}
+      src={resolved}
+      alt={alt}
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  );
 }

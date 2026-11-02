@@ -46,6 +46,12 @@ def test_outfit_and_purchase_uploads_after_consent(session):
     )
     assert uploaded.status_code == 201, uploaded.text
     assert uploaded.json()["kind"] == "outfit"
+    listed_photos = client.get("/v1/assets?kind=outfit")
+    assert listed_photos.status_code == 200, listed_photos.text
+    assert listed_photos.json()["items"][0]["id"] == uploaded.json()["id"]
+    content = client.get(f"/v1/assets/{uploaded.json()['id']}/content")
+    assert content.status_code == 200
+    assert content.content[:8] == b"\x89PNG\r\n\x1a\n" or content.content[:3] == b"\xff\xd8"
     product = client.post(
         "/v1/products",
         data={
