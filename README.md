@@ -111,9 +111,9 @@ Objective: \(f(A)=|O(W \cup A)|-|O(W)|\) where \(O(S)\) is the set of qualified 
 
 ## Five graphs
 
-White backgrounds, no grid lines, cobalt / green / coral accents.
+Editorial cream canvas, pink connections, no grid lines.
 
-1. **Wardrobe constellation** — category-grouped nodes, muted owned items, highlighted candidates, explainable edges.
+1. **Combination hub** — selected piece in the centre, owned/considering neighbours, explainable edges after a persisted analysis (layout, not an embedding).
 2. **Outfit unlock ranking** — standalone `f({x})` versus basket-conditional contribution.
 3. **Budget frontier** — exact best `f(A)` at discrete price breakpoints (step chart, never smoothed).
 4. **Synergy matrix** — `f({i,j})-f({i})-f({j})` with complementarity versus overlap.

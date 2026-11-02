@@ -3,29 +3,28 @@
 import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { AnalysisResult } from "@/lib/api";
 
-const tooltipStyle = { background: "#fff", border: "1px solid #eee", borderRadius: 12 };
+const tooltipStyle = { background: "#fff", border: "1px solid #f0e7e4", borderRadius: 12, fontSize: 12 };
 
 export function UnlockRanking({ result }: { result: AnalysisResult }) {
   const data = result.standalone.map((row) => ({
     name: String(row.name || row.product_id),
     standalone: Number(row.standalone_f || 0),
     conditional: Number(row.basket_conditional_f || 0),
-    price: Number(row.price_minor || 0) / 100,
   }));
   return (
-    <div className="bg-white">
-      <h3 className="text-sm font-semibold">Outfit unlock ranking</h3>
-      <p className="mb-3 text-xs text-muted">
-        Standalone f({"{x}"}) versus basket-conditional contribution. Overlapping yields are not additive.
+    <div>
+      <h3 className="text-lg font-semibold tracking-tight">What each piece adds</h3>
+      <p className="mb-3 text-[11px] text-muted">
+        Conceptual contribution: standalone f({"{x}"}) versus basket-conditional yield. Overlapping yields are not additive.
       </p>
-      <div className="no-grid h-56">
+      <div className="no-grid h-40">
         <ResponsiveContainer>
-          <BarChart data={data}>
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+          <BarChart data={data} layout="vertical" margin={{ left: 8, right: 8 }}>
+            <XAxis type="number" hide />
+            <YAxis type="category" dataKey="name" width={92} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={tooltipStyle} />
-            <Bar dataKey="standalone" name="Standalone yield" fill="#245bff" radius={6} />
-            <Bar dataKey="conditional" name="Basket-conditional" fill="#1fa97a" radius={6} />
+            <Bar dataKey="standalone" name="Standalone yield" fill="#ff7eb3" radius={6} barSize={10} />
+            <Bar dataKey="conditional" name="Basket-conditional" fill="#9dba8c" radius={6} barSize={10} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -37,21 +36,20 @@ export function BudgetFrontier({ result }: { result: AnalysisResult }) {
   const data = result.frontier.map((row) => ({
     cost: Number(row.breakpoint_minor || row.cost_minor || 0) / 100,
     f: Number(row.objective_value || 0),
-    items: (row.product_ids as string[] | undefined)?.length || 0,
   }));
   return (
-    <div className="bg-white">
-      <h3 className="text-sm font-semibold">Budget frontier</h3>
-      <p className="mb-3 text-xs text-muted">
-        Exact best f(A) at feasible price breakpoints. Discrete step values — not a smoothed curve.
+    <div>
+      <h3 className="text-lg font-semibold tracking-tight">Options within your budget</h3>
+      <p className="mb-3 text-[11px] text-muted">
+        Distinct outfit options at feasible price breakpoints. Discrete steps — not a smoothed curve.
       </p>
-      <div className="no-grid h-56">
+      <div className="no-grid h-40">
         <ResponsiveContainer>
           <LineChart data={data}>
-            <XAxis dataKey="cost" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+            <XAxis dataKey="cost" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} label={{ value: "Budget", position: "insideBottom", offset: -2, fontSize: 10, fill: "#7a7270" }} />
             <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
             <Tooltip contentStyle={tooltipStyle} />
-            <Line dataKey="f" stroke="#ff6b4a" strokeWidth={2} name="Exact f(A)" type="stepAfter" dot={false} />
+            <Line dataKey="f" stroke="#ff2d8b" strokeWidth={2} name="Exact f(A)" type="stepAfter" dot={{ r: 3, fill: "#ff2d8b" }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -61,8 +59,8 @@ export function BudgetFrontier({ result }: { result: AnalysisResult }) {
 
 export function SynergyMatrix({ result }: { result: AnalysisResult }) {
   return (
-    <div className="bg-white">
-      <h3 className="text-sm font-semibold">Purchase synergy matrix</h3>
+    <div>
+      <h3 className="text-lg font-semibold tracking-tight">Purchase synergy</h3>
       <p className="mb-3 text-xs text-muted">
         f({"{i,j}"}) − f({"{i}"}) − f({"{j}"}). Positive complementarity versus negative overlap.
       </p>
@@ -79,7 +77,7 @@ export function SynergyMatrix({ result }: { result: AnalysisResult }) {
           </thead>
           <tbody>
             {result.synergy.map((row) => (
-              <tr key={`${row.i}-${row.j}`} className="border-t border-[#f6f6f6]" title={String(row.explanation)}>
+              <tr key={`${row.i}-${row.j}`} className="border-t border-line" title={String(row.explanation)}>
                 <td className="py-2">
                   {String(row.i_name)} + {String(row.j_name)}
                 </td>
@@ -107,26 +105,25 @@ export function SynergyMatrix({ result }: { result: AnalysisResult }) {
 
 export function AlgorithmCompare({ result }: { result: AnalysisResult }) {
   const data = result.comparison.map((row) => ({
-    method: String(row.method),
+    method: String(row.method).replace(/_/g, " "),
     value: Number(row.objective_value || 0),
-    gap: row.percentage_gap_defined ? Number(row.absolute_gap || 0) : "n/a",
+    gap: row.percentage_gap_defined ? String(row.absolute_gap) : "undefined",
+    ids: (row.product_ids as string[]) || [],
   }));
   return (
-    <div className="bg-white">
-      <h3 className="text-sm font-semibold">Algorithm comparison</h3>
+    <div>
+      <h3 className="text-lg font-semibold tracking-tight">Build a better basket</h3>
       <p className="mb-3 text-xs text-muted">
         Exact search versus baselines under the same budget. Percentage gaps are undefined when the optimum is zero.
-        Superiority here is not proof of usefulness.
       </p>
-      <div className="no-grid h-56">
-        <ResponsiveContainer>
-          <BarChart data={data}>
-            <XAxis dataKey="method" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Bar dataKey="value" fill="#245bff" radius={6} name="Objective f(A)" />
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="space-y-2">
+        {data.map((row) => (
+          <div key={row.method} className="flex items-center justify-between rounded-2xl bg-cream px-3 py-2 text-xs">
+            <span className="capitalize">{row.method}</span>
+            <span className="font-medium">{row.value} options · gap {row.gap}</span>
+          </div>
+        ))}
+        {!data.length && <p className="text-xs text-muted">Run an analysis to compare baskets.</p>}
       </div>
     </div>
   );
