@@ -13,6 +13,7 @@ import { AuthImage } from "@/components/auth-image";
 import { AlgorithmCompare, BudgetFrontier, UnlockRanking } from "@/components/graphs/charts";
 import { CombinationHub } from "@/components/graphs/hub";
 import { Logo } from "@/components/logo";
+import { prepareImageFile } from "@/lib/prepare-image";
 
 async function pollJob(jobId: string, onTick?: (job: { status: string; error_safe?: string | null }) => void) {
   const started = Date.now();
@@ -63,6 +64,7 @@ export function Studio() {
   const garments = useQuery({ queryKey: ["garments"], queryFn: () => api.garments() });
   const products = useQuery({ queryKey: ["products"], queryFn: () => api.products() });
   const outfitPhotos = useQuery({ queryKey: ["assets", "outfit"], queryFn: () => api.assets("outfit") });
+  const tryonPhotos = useQuery({ queryKey: ["assets", "tryon_source"], queryFn: () => api.assets("tryon_source") });
   const analysisId = workspace.data?.latest_analysis_id;
   const analysis = useQuery({
     queryKey: ["analysis", analysisId],
@@ -81,8 +83,11 @@ export function Studio() {
   const [error, setError] = useState<string | null>(null);
   const [tryonLabel, setTryonLabel] = useState<string | null>(null);
   const [tryonAsset, setTryonAsset] = useState<string | null>(null);
+  const [tryonPreview, setTryonPreview] = useState<string | null>(null);
+  const [tryonUploading, setTryonUploading] = useState(false);
   const [showPurchase, setShowPurchase] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  const [resetting, setResetting] = useState(false);
 
   const refresh = () => queryClient.invalidateQueries();
   const selectedGarment = garments.data?.items.find((item) => item.id === selectedId);
@@ -108,7 +113,15 @@ export function Studio() {
           ]);
         }
         try {
-          const uploaded = await api.upload(kind, file);
+          if (kind === "tryon_source") setTryonUploading(true);
+          const prepared = await prepareImageFile(file);
+          const uploaded = await api.upload(kind, prepared);
+          if (kind === "tryon_source") {
+            setTryonPreview(preview);
+            setTryonAsset(null);
+            setTryonLabel("Try-on photo uploaded");
+            setTryonUploading(false);
+          }
           if (kind === "outfit") {
             setPendingPhotos((current) =>
               current.map((item) =>
@@ -150,6 +163,7 @@ export function Studio() {
               current.map((item) => (item.key === key ? { ...item, status: "error", message } : item)),
             );
           }
+          if (kind === "tryon_source") setTryonUploading(false);
           throw uploadErr;
         }
       }
@@ -158,6 +172,29 @@ export function Studio() {
       setError(err instanceof Error ? err.message : "Upload failed.");
     }
   }
+
+  async function handleStartOver() {
+    if (!window.confirm("Delete this closet, all photographs, and purchases so you can start again?")) return;
+    setResetting(true);
+    setError(null);
+    try {
+      await api.deleteWorkspace();
+      setPendingPhotos([]);
+      setTryonAsset(null);
+      setTryonLabel(null);
+      setTryonPreview(null);
+      setSelectedId(null);
+      setShowPurchase(false);
+      setTab("closet");
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start over.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  const latestTryonSource = tryonPhotos.data?.items[0];
 
   const runAnalysis = useMutation({
     mutationFn: async () => {
@@ -273,6 +310,14 @@ export function Studio() {
           >
             <BagIcon />
             Add a purchase
+          </button>
+          <button
+            type="button"
+            onClick={handleStartOver}
+            disabled={resetting}
+            className="rounded-full border border-line bg-white px-4 py-2.5 text-sm text-muted disabled:opacity-50"
+          >
+            {resetting ? "Clearing…" : "Start over"}
           </button>
         </div>
       </section>
@@ -479,9 +524,15 @@ export function Studio() {
               <div className="relative mt-3 overflow-hidden rounded-[24px] bg-cream">
                 {tryonAsset ? (
                   <AuthImage assetId={tryonAsset} alt="Live try-on result" className="h-64 w-full object-cover" />
+                ) : tryonPreview ? (
+                  <img src={tryonPreview} alt="Uploaded try-on photo" className="h-64 w-full object-cover" />
+                ) : latestTryonSource ? (
+                  <AuthImage assetId={latestTryonSource.id} alt="Uploaded try-on photo" className="h-64 w-full object-cover" />
                 ) : (
                   <div className="flex h-64 items-center justify-center px-4 text-center text-sm text-muted">
-                    Live YouCam preview appears here after a successful task. Nothing is prefilled.
+                    {tryonUploading
+                      ? "Uploading try-on photo…"
+                      : "Upload a full-body JPEG or PNG here first. Live YouCam output appears after a successful task."}
                   </div>
                 )}
                 {tryonLabel && (
@@ -514,8 +565,20 @@ export function Studio() {
                 </div>
               )}
               <label className="mt-3 block cursor-pointer text-center text-[11px] text-pink">
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => handleFiles("tryon_source", event.target.files)} />
-                {workspace.data?.has_tryon_photo ? "Replace try-on photo" : "Upload a try-on photo"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+                  className="hidden"
+                  onChange={(event) => {
+                    handleFiles("tryon_source", event.target.files);
+                    event.target.value = "";
+                  }}
+                />
+                {tryonUploading
+                  ? "Uploading…"
+                  : workspace.data?.has_tryon_photo || tryonPreview
+                    ? "Replace try-on photo"
+                    : "Upload a try-on photo"}
               </label>
               <div className="mt-4 grid grid-cols-2 gap-2 text-[11px]">
                 <div>
@@ -779,7 +842,8 @@ function PurchaseForm({
           return;
         }
         try {
-          await api.createProduct(draft, productFile);
+          const prepared = await prepareImageFile(productFile);
+          await api.createProduct(draft, prepared);
           setDraft({ title: "", price_major: "", currency: draft.currency, category: "top", colour_family: "", pattern_family: "solid" });
           setProductFile(null);
           onRefresh();
@@ -822,8 +886,12 @@ function PurchaseForm({
         type="button"
         className="text-[11px] text-pink"
         onClick={async () => {
-          await api.deleteWorkspace();
-          onRefresh();
+          try {
+            await api.deleteWorkspace();
+            onRefresh();
+          } catch (err) {
+            onError(err instanceof Error ? err.message : "Could not start over.");
+          }
         }}
       >
         Start over
@@ -867,7 +935,7 @@ function HowItWorks() {
       </p>
       <ol className="list-decimal space-y-2 pl-5 text-sm">
         <li>Upload real outfit photographs and confirm garments before they count.</li>
-        <li>Add 4–10 real cart candidates with image, price, and category.</li>
+        <li>Add 2–10 real cart candidates with image, price, and category.</li>
         <li>Compute rankings. Charts use persisted analysis results only.</li>
         <li>Generate live try-on submits a fresh YouCam task when configured; cached results stay labelled.</li>
       </ol>

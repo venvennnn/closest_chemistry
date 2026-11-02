@@ -47,8 +47,13 @@ def normalise_image(data: bytes) -> tuple[bytes, dict]:
         raise ImageValidationError(
             f"Each side must be at least {settings.min_image_side}px after orientation correction."
         )
-    if max(image.width, image.height) > settings.max_image_side:
-        raise ImageValidationError(f"Longest side must be at most {settings.max_image_side}px.")
+    longest = max(image.width, image.height)
+    if longest > settings.max_image_side:
+        scale = settings.max_image_side / longest
+        image = image.resize(
+            (max(1, int(image.width * scale)), max(1, int(image.height * scale))),
+            Image.Resampling.LANCZOS,
+        )
 
     if image.mode not in ("RGB", "RGBA"):
         image = image.convert("RGB")
