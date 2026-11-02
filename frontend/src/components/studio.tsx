@@ -26,6 +26,16 @@ function money(minor: number, currency: string) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(minor / 100);
 }
 
+function workspaceErrorMessage(err: unknown) {
+  const raw = err instanceof Error ? err.message : "The Closest Chemistry API is unreachable.";
+  const text = raw.replace(/\.*$/, ".");
+  if (/^cannot reach/i.test(text)) return text;
+  if (/failed to fetch|networkerror|load failed/i.test(text)) {
+    return "Cannot reach the Closest Chemistry API, so this closet is not saved. Set API_URL on Vercel to your Railway/Render origin, or start FastAPI on port 8000 locally.";
+  }
+  return text;
+}
+
 type Tab = "closet" | "bag" | "saved" | "how";
 
 export function Studio() {
@@ -190,7 +200,7 @@ export function Studio() {
       {error && <p className="mx-8 mb-4 rounded-2xl bg-pink-soft px-4 py-2 text-sm text-pink">{error}</p>}
       {workspace.isError && (
         <p className="mx-8 mb-4 rounded-2xl bg-pink-soft px-4 py-2 text-sm text-pink">
-          {(workspace.error as Error).message.replace(/\.*$/, ".")} The canvas still loads; connect the API to persist a closet.
+          {workspaceErrorMessage(workspace.error)}
         </p>
       )}
 

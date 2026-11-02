@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -14,9 +15,21 @@ class StorageError(RuntimeError):
 
 def _local_root() -> Path:
     settings = get_settings()
-    path = Path(settings.local_storage_dir)
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    candidates = [Path(settings.local_storage_dir), Path(tempfile.gettempdir()) / "closest-chemistry-storage"]
+    last_error: OSError | None = None
+    for path in candidates:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+            probe = path / ".write_probe"
+            probe.write_bytes(b"ok")
+            probe.unlink()
+            return path
+        except OSError as exc:
+            last_error = exc
+    raise StorageError(
+        "Could not write photographs to local storage. Set LOCAL_STORAGE_DIR to a writable volume "
+        "or configure Supabase Storage. API and worker must share that disk."
+    ) from last_error
 
 
 def put_bytes(owner_id: str, key: str, data: bytes, mime_type: str) -> str:
@@ -45,9 +58,17 @@ def put_bytes(owner_id: str, key: str, data: bytes, mime_type: str) -> str:
             )
         return storage_key
 
-    destination = _local_root() / storage_key
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(data)
+    try:
+        destination = _local_root() / storage_key
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
+    except StorageError:
+        raise
+    except OSError as exc:
+        raise StorageError(
+            "Could not write photographs to local storage. Set LOCAL_STORAGE_DIR to a writable volume "
+            "or configure Supabase Storage."
+        ) from exc
     return storage_key
 
 

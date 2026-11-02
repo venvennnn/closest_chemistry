@@ -8,11 +8,11 @@ from sqlalchemy.orm import sessionmaker
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
-os.environ.setdefault("ENVIRONMENT", "test")
-os.environ.setdefault("AUTH_MODE", "single")
-os.environ.setdefault("DATABASE_SSL_REQUIRE", "false")
-os.environ.setdefault("LOCAL_STORAGE_DIR", str(ROOT / ".local_storage_test"))
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+os.environ["ENVIRONMENT"] = "test"
+os.environ["AUTH_MODE"] = "single"
+os.environ["DATABASE_SSL_REQUIRE"] = "false"
+os.environ["LOCAL_STORAGE_DIR"] = str(ROOT / ".local_storage_test")
 
 from app.config import get_settings
 from app.database import Base, reset_engine, get_engine

@@ -123,7 +123,7 @@ Editorial cream canvas, pink connections, no grid lines.
 
 1. **Postgres**: Render Postgres (or Compose). Point `DATABASE_URL` at it (`postgresql+psycopg://...`).
 2. **API / worker on Render**: `render.yaml`. Run `alembic upgrade head` as a release command or first-boot (`docker-compose` already does this). Confirm `/healthz` and `/readyz`.
-3. **Frontend on Vercel**: root `frontend/`, set only `NEXT_PUBLIC_API_URL` to the Render API. Restrict `CORS_ORIGINS` to the Vercel origin.
+3. **Frontend on Vercel**: root `frontend/`. Set **server** env `API_URL` to the Render/Railway API origin (no trailing slash). The browser calls same-origin `/v1`; Next.js proxies. Also set `CORS_ORIGINS` on the API to the Vercel origin.
 4. Provider keys stay server-side. There are no Supabase Auth keys to set.
 
 ## Recovery
