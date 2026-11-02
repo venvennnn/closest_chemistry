@@ -181,6 +181,32 @@ async def upload_asset(
     return {"id": str(asset.id), **meta, "kind": kind}
 
 
+@router.get("/assets")
+def list_assets(
+    kind: str | None = None,
+    principal: Principal = Depends(current_principal),
+    session: Session = Depends(get_db),
+) -> dict:
+    workspace = _workspace(session, principal)
+    stmt = select(Asset).where(Asset.workspace_id == workspace.id, Asset.deleted_at.is_(None))
+    if kind:
+        stmt = stmt.where(Asset.kind == kind)
+    rows = session.scalars(stmt.order_by(Asset.created_at.desc())).all()
+    return {
+        "items": [
+            {
+                "id": str(row.id),
+                "kind": row.kind,
+                "original_filename": row.original_filename,
+                "mime_type": row.mime_type,
+                "width": row.width,
+                "height": row.height,
+            }
+            for row in rows
+        ]
+    }
+
+
 @router.get("/assets/{asset_id}/content")
 def asset_content(
     asset_id: UUID,

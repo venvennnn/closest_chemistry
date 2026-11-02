@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import {
   api,
   type AnalysisView,
+  type AssetView,
   type GarmentView,
   type ProductView,
 } from "@/lib/api";
@@ -38,11 +39,21 @@ function workspaceErrorMessage(err: unknown) {
 
 type Tab = "closet" | "bag" | "saved" | "how";
 
+type PendingPhoto = {
+  key: string;
+  name: string;
+  preview?: string;
+  assetId?: string;
+  status: "uploading" | "extracting" | "ready" | "error";
+  message?: string;
+};
+
 export function Studio() {
   const queryClient = useQueryClient();
   const workspace = useQuery({ queryKey: ["workspace"], queryFn: () => api.workspace() });
   const garments = useQuery({ queryKey: ["garments"], queryFn: () => api.garments() });
   const products = useQuery({ queryKey: ["products"], queryFn: () => api.products() });
+  const outfitPhotos = useQuery({ queryKey: ["assets", "outfit"], queryFn: () => api.assets("outfit") });
   const analysisId = workspace.data?.latest_analysis_id;
   const analysis = useQuery({
     queryKey: ["analysis", analysisId],
@@ -62,6 +73,7 @@ export function Studio() {
   const [tryonLabel, setTryonLabel] = useState<string | null>(null);
   const [tryonAsset, setTryonAsset] = useState<string | null>(null);
   const [showPurchase, setShowPurchase] = useState(false);
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
 
   const refresh = () => queryClient.invalidateQueries();
   const selectedGarment = garments.data?.items.find((item) => item.id === selectedId);
@@ -75,13 +87,51 @@ export function Studio() {
   async function handleFiles(kind: "outfit" | "tryon_source" | "product", files: FileList | null) {
     if (!files) return;
     setError(null);
+    const selected = Array.from(files).slice(0, kind === "outfit" ? 15 : 1);
     try {
-      for (const file of Array.from(files).slice(0, kind === "outfit" ? 15 : 1)) {
-        const uploaded = await api.upload(kind, file);
+      for (const file of selected) {
+        const key = `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`;
+        const preview = URL.createObjectURL(file);
         if (kind === "outfit") {
-          const job = await api.extract(uploaded.id);
-          const extracted = await pollJob(job.job_id);
-          if (extracted.status === "failed") throw new Error(extracted.error_safe || "Extraction failed.");
+          setPendingPhotos((current) => [
+            { key, name: file.name, preview, status: "uploading" },
+            ...current,
+          ]);
+        }
+        try {
+          const uploaded = await api.upload(kind, file);
+          if (kind === "outfit") {
+            setPendingPhotos((current) =>
+              current.map((item) =>
+                item.key === key ? { ...item, assetId: uploaded.id, status: "extracting" } : item,
+              ),
+            );
+            refresh();
+            try {
+              const job = await api.extract(uploaded.id);
+              const extracted = await pollJob(job.job_id);
+              if (extracted.status === "failed") {
+                throw new Error(extracted.error_safe || "Extraction failed.");
+              }
+              setPendingPhotos((current) =>
+                current.map((item) => (item.key === key ? { ...item, status: "ready" } : item)),
+              );
+            } catch (extractErr) {
+              const message = extractErr instanceof Error ? extractErr.message : "Extraction failed.";
+              setPendingPhotos((current) =>
+                current.map((item) => (item.key === key ? { ...item, status: "error", message } : item)),
+              );
+              setError(message);
+            }
+          }
+        } catch (uploadErr) {
+          const message = uploadErr instanceof Error ? uploadErr.message : "Upload failed.";
+          if (kind === "outfit") {
+            setPendingPhotos((current) =>
+              current.map((item) => (item.key === key ? { ...item, status: "error", message } : item)),
+            );
+          }
+          throw uploadErr;
         }
       }
       refresh();
@@ -131,6 +181,8 @@ export function Studio() {
   const filteredOwned =
     closetFilter === "all" ? owned : owned.filter((item) => item.category === closetFilter);
   const bag = products.data?.items || [];
+  const pendingAssetIds = new Set(pendingPhotos.map((item) => item.assetId).filter(Boolean) as string[]);
+  const uploadedPhotos = (outfitPhotos.data?.items || []).filter((item) => !pendingAssetIds.has(item.id));
   const qualifiedLooks = (result?.outfits || []).filter((item) => item.qualified).slice(0, 6);
 
   const closetFilters = useMemo(() => {
@@ -181,7 +233,16 @@ export function Studio() {
         </div>
         <div className="flex gap-3">
           <label className="cursor-pointer rounded-full bg-pink px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_rgba(255,45,139,0.28)]">
-            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => handleFiles("outfit", event.target.files)} />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                handleFiles("outfit", event.target.files);
+                event.target.value = "";
+              }}
+            />
             + Add outfit photos
           </label>
           <button
@@ -254,6 +315,35 @@ export function Studio() {
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2.5">
+                  {closetFilter === "all" &&
+                    pendingPhotos.map((item) => (
+                      <article key={item.key} className="rounded-[22px] bg-white p-2 shadow-[0_6px_18px_rgba(40,20,20,0.04)]">
+                        <AuthImage
+                          src={item.preview}
+                          assetId={item.assetId}
+                          alt={item.name}
+                          className="h-[88px] w-full rounded-2xl object-cover"
+                        />
+                        <p className="mt-1.5 truncate text-center text-[11px]">{item.name}</p>
+                        <p className="text-center text-[10px] text-pink">
+                          {item.status === "uploading"
+                            ? "Uploading…"
+                            : item.status === "extracting"
+                              ? "Finding garments…"
+                              : item.status === "error"
+                                ? item.message || "Could not extract"
+                                : "Uploaded"}
+                        </p>
+                      </article>
+                    ))}
+                  {closetFilter === "all" &&
+                    uploadedPhotos.map((item: AssetView) => (
+                      <article key={item.id} className="rounded-[22px] bg-white p-2 shadow-[0_6px_18px_rgba(40,20,20,0.04)]">
+                        <AuthImage assetId={item.id} alt={item.original_filename || "Outfit photo"} className="h-[88px] w-full rounded-2xl object-cover" />
+                        <p className="mt-1.5 truncate text-center text-[11px]">{item.original_filename || "Outfit photo"}</p>
+                        <p className="text-center text-[10px] text-muted">Uploaded photo</p>
+                      </article>
+                    ))}
                   {filteredOwned.map((item) => (
                     <button
                       key={item.id}
@@ -287,7 +377,16 @@ export function Studio() {
                     </button>
                   ))}
                   <label className="col-span-2 flex min-h-[72px] cursor-pointer flex-col items-center justify-center rounded-[22px] border border-dashed border-pink/45 bg-white/70 text-center text-[11px] font-medium text-pink">
-                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => handleFiles("outfit", event.target.files)} />
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        handleFiles("outfit", event.target.files);
+                        event.target.value = "";
+                      }}
+                    />
                     + Add a garment
                   </label>
                 </div>
