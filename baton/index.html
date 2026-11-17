@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Baton — Screening-to-Care Coordination</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+    colors: {
+      brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8',800:'#1e40af',900:'#1e3a8a' },
+      healing: { 50:'#ecfdf5',100:'#d1fae5',500:'#10b981',600:'#059669',700:'#047857' }
+    },
+    boxShadow: {
+      window: '0 20px 40px -15px rgba(0,0,0,0.07), 0 0 1px 1px rgba(0,0,0,0.05)',
+      card: '0 4px 12px -2px rgba(0,0,0,0.05), 0 2px 6px -1px rgba(0,0,0,0.02)'
+    }
+  } }
+}
+</script>
+<style>
+  body { background:#fafbfc; color:#0f172a; }
+  .nav-link[aria-current="page"] { color:#1e40af; border-bottom-color:#1e40af; font-weight:700; }
+  .nav-link { border-bottom:2px solid transparent; }
+  input[type=range] { accent-color:#1e40af; }
+  .locked-stripes { background-image:repeating-linear-gradient(135deg,#f1f5f9 0,#f1f5f9 8px,#e2e8f0 8px,#e2e8f0 16px); }
+  :focus-visible { outline:2px solid #1e40af; outline-offset:2px; }
+  .tour-spot { outline: 3px solid #1e40af; outline-offset: 6px; border-radius: 16px; position: relative; z-index: 70; }
+  #tour-backdrop { display:none; position:fixed; inset:0; background:rgba(15,23,42,.48); z-index:64; }
+  #tour-card { display:none; position:fixed; right:24px; bottom:24px; width:min(420px,calc(100vw - 32px)); z-index:80; }
+</style>
+</head>
+<body class="font-sans antialiased text-slate-800">
+
+<!-- ============ HEADER ============ -->
+<header class="w-full bg-[#fafbfc]/90 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200/70">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+    <a href="#overview" class="flex items-center gap-3 group shrink-0" aria-label="Baton Home">
+      <div class="w-7 h-7 rounded-md bg-gradient-to-tr from-brand-800 to-brand-600 flex items-center justify-center text-white shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24"><rect height="7" rx="1.5" width="7" x="3" y="3"/><rect height="7" rx="1.5" width="7" x="14" y="3"/><rect height="7" rx="1.5" width="7" x="14" y="14"/><rect height="7" rx="1.5" width="7" x="3" y="14"/></svg>
+      </div>
+      <span class="text-xl font-bold tracking-tight text-slate-900 group-hover:text-brand-800 transition">Baton</span>
+    </a>
+    <nav class="flex items-center gap-1 sm:gap-5 overflow-x-auto text-sm" aria-label="Primary">
+      <a class="nav-link whitespace-nowrap font-medium text-slate-700 hover:text-slate-950 px-2 py-5 transition" data-nav="overview" href="#overview">Overview</a>
+      <a class="nav-link whitespace-nowrap font-medium text-slate-700 hover:text-slate-950 px-2 py-5 transition" data-nav="case-board" href="#case-board">Case Board</a>
+      <a class="nav-link whitespace-nowrap font-medium text-slate-700 hover:text-slate-950 px-2 py-5 transition" data-nav="case-record" href="#case-record">Case FIT-26771</a>
+      <a class="nav-link whitespace-nowrap font-medium text-slate-700 hover:text-slate-950 px-2 py-5 transition" data-nav="facilities" href="#facilities">Facilities</a>
+      <a class="nav-link whitespace-nowrap font-medium text-slate-700 hover:text-slate-950 px-2 py-5 transition" data-nav="policy-simulator" href="#policy-simulator">Policy Simulator</a>
+    </nav>
+    <div class="flex items-center gap-2 shrink-0">
+      <button type="button" id="tour-start" class="hidden sm:inline-flex items-center px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-900 rounded-lg text-sm font-semibold transition shadow-sm">Start walkthrough</button>
+      <a href="#case-board" class="hidden md:inline-flex items-center px-4 py-2 bg-slate-900 hover:bg-brand-800 text-white rounded-lg text-sm font-semibold transition shadow-sm">Open demo</a>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- ============ PAGE: OVERVIEW ============ -->
+<div id="page-overview" data-page>
+  <section class="pt-12 sm:pt-16 pb-12 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto text-center">
+    <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs sm:text-sm font-medium mb-6">Screening-to-care coordination</div>
+    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-950 leading-[1.12] mb-6">Every screening result.<br/>Followed through to care.</h1>
+    <p class="text-lg sm:text-xl text-slate-700 max-w-2xl mx-auto mb-8 leading-relaxed">Coordinate patient outreach, referrals and follow-up in one shared workspace.</p>
+    <div class="flex flex-wrap items-center justify-center gap-3.5 mb-3">
+      <a href="#case-board" class="px-6 py-3 rounded-full bg-slate-950 text-white font-medium text-sm hover:bg-brand-800 transition shadow-md">Open demo</a>
+      <button type="button" class="px-6 py-3 rounded-full bg-white text-slate-800 border border-slate-300 font-medium text-sm hover:bg-slate-50 transition shadow-sm" onclick="startTour()">Start walkthrough</button>
+    </div>
+    <p class="text-xs text-slate-600 font-medium">Synthetic demonstration</p>
+
+    <div class="mt-12 text-left bg-white rounded-2xl border border-slate-200 shadow-window overflow-hidden">
+      <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+        <div class="flex items-center space-x-2"><span class="w-3 h-3 rounded-full bg-red-400"></span><span class="w-3 h-3 rounded-full bg-amber-400"></span><span class="w-3 h-3 rounded-full bg-emerald-400"></span></div>
+        <div class="w-64 h-3 bg-slate-200/70 rounded-full mx-auto hidden sm:block"></div><div class="w-12"></div>
+      </div>
+      <div class="p-6 sm:p-10 bg-slate-50/40">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-center">
+          <div class="flex flex-col space-y-4">
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3"><div class="w-9 h-9 rounded-lg bg-healing-50 text-healing-700 flex items-center justify-center font-bold">✓</div><div><h4 class="text-xs font-bold text-slate-900">Result issued</h4><p class="text-[11px] text-slate-600">FIT positive · Jan 14</p></div></div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3"><div class="w-9 h-9 rounded-lg bg-healing-50 text-healing-700 flex items-center justify-center font-bold">✓</div><div><h4 class="text-xs font-bold text-slate-900">Patient outreach</h4><p class="text-[11px] text-slate-600">Contacted · Jan 16</p></div></div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3"><div class="w-9 h-9 rounded-lg bg-healing-50 text-healing-700 flex items-center justify-center font-bold">✓</div><div><h4 class="text-xs font-bold text-slate-900">Referral</h4><p class="text-[11px] text-slate-600">Sent to GI · Jan 17</p></div></div>
+          </div>
+          <div class="bg-white rounded-2xl border-2 border-amber-300 p-5 shadow-card">
+            <span class="text-base font-extrabold text-slate-900">FIT-26771</span>
+            <div class="my-3"><span class="inline-block px-2.5 py-1 rounded-md bg-amber-50 text-amber-800 text-[11px] font-semibold border border-amber-200">Referral returned</span></div>
+            <div class="space-y-2 text-xs border-t border-slate-100 pt-3 text-slate-700">
+              <div><strong class="text-slate-900">Owner ·</strong> Huda Al Mansour</div>
+              <div><strong class="text-slate-900">Next step ·</strong> Review destinations</div>
+            </div>
+          </div>
+          <div class="flex flex-col space-y-4">
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3"><div class="w-9 h-9 rounded-lg bg-amber-50 text-amber-800 flex items-center justify-center font-bold">!</div><div><h4 class="text-xs font-bold text-slate-900">Receiving team</h4><p class="text-[11px] text-slate-600">GI Service · Returned Jan 21</p></div></div>
+            <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3"><div class="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center">🔒</div><div><h4 class="text-xs font-bold text-slate-900">Documented closure</h4><p class="text-[11px] text-slate-600">Locked until pathology verified</p></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="py-3 bg-slate-50 border-t border-slate-200 text-center text-xs font-medium text-slate-700">Follow up · Hand over · Close the loop</div>
+    </div>
+
+    <div class="mt-12 pt-8 border-t border-slate-200/70 max-w-4xl mx-auto">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-600 mb-4 text-center">Integrated with regional health information exchanges &amp; clinical screening standards</p>
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-800"><span class="w-2 h-2 rounded-full bg-healing-500"></span>Malaffi HIE Integrated</div>
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-800"><span class="w-2 h-2 rounded-full bg-brand-600"></span>FHIR R4 Diagnostic Feeds</div>
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-800"><span class="w-2 h-2 rounded-full bg-amber-500"></span>DoH Colorectal Pathway 2025</div>
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-200 shadow-sm text-xs font-medium text-slate-800"><span class="w-2 h-2 rounded-full bg-healing-600"></span>Bilingual EN / AR Outreach</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto border-t border-slate-200/80">
+    <div class="text-center max-w-3xl mx-auto mb-12">
+      <span class="inline-block px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold mb-3">Standardized Protocol</span>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-950 tracking-tight mb-3">Closed-loop screening in four clear milestones</h2>
+      <p class="text-base text-slate-700">Engineered to prevent patient loss-to-follow-up between positive screening and diagnostic completion.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-brand-800 mb-1">MILESTONE 01</div><h4 class="text-base font-bold text-slate-900 mb-2">Positive Detection</h4><p class="text-xs text-slate-700 leading-relaxed mb-4">Automated ingestion of positive FIT/FOBT lab feeds into coordination queues within 60 minutes.</p><span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-healing-700 bg-healing-50 px-2 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-healing-500"></span>LIS Auto-ingested</span></div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-brand-800 mb-1">MILESTONE 02</div><h4 class="text-base font-bold text-slate-900 mb-2">Navigator Outreach</h4><p class="text-xs text-slate-700 leading-relaxed mb-4">Bilingual nurse navigator counseling via WhatsApp, SMS and telephone within 48 hours.</p><span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-800 bg-brand-50 px-2 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>48h SLA Target</span></div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-brand-800 mb-1">MILESTONE 03</div><h4 class="text-base font-bold text-slate-900 mb-2">Direct Colonoscopy</h4><p class="text-xs text-slate-700 leading-relaxed mb-4">Cross-network slot allocation to facilities with the shortest confirmed booking delays.</p><span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-800 bg-brand-50 px-2 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-brand-600"></span>Direct Slot Match</span></div>
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm"><div class="text-xs font-bold text-brand-800 mb-1">MILESTONE 04</div><h4 class="text-base font-bold text-slate-900 mb-2">Care Closure &amp; Audit</h4><p class="text-xs text-slate-700 leading-relaxed mb-4">Pathology reconciliation, surveillance intervals set, auditable loop sign-off recorded.</p><span class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-healing-700 bg-healing-50 px-2 py-0.5 rounded"><span class="w-1.5 h-1.5 rounded-full bg-healing-500"></span>100% Provenance</span></div>
+    </div>
+  </section>
+
+  <section class="py-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto border-t border-slate-200/80">
+    <div class="text-center max-w-3xl mx-auto mb-12">
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-950 tracking-tight mb-3">One workspace for every handover.</h2>
+      <p class="text-base sm:text-lg text-slate-700">See the owner, the blocker and the next action.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <a href="#case-board" class="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-card transition"><span class="inline-block px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-800 border border-brand-200 text-xs font-semibold mb-3">Case Board</span><h3 class="font-bold text-slate-900 mb-1">Know who owns the next step</h3><p class="text-sm text-slate-700">Daily worklist sorted by urgency with SLA timers.</p><span class="mt-3 inline-block text-sm font-semibold text-slate-900 group-hover:text-brand-800">Open →</span></a>
+      <a href="#case-record" class="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-card transition"><span class="inline-block px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold mb-3">Case Record</span><h3 class="font-bold text-slate-900 mb-1">Readiness, SBAR &amp; hard lock</h3><p class="text-sm text-slate-700">Checklist, e-consult, modesty routing and pathology-gated closure.</p><span class="mt-3 inline-block text-sm font-semibold text-slate-900 group-hover:text-brand-800">Open →</span></a>
+      <a href="#facilities" class="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-card transition"><span class="inline-block px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-800 border border-brand-200 text-xs font-semibold mb-3">Facilities</span><h3 class="font-bold text-slate-900 mb-1">See where follow-up is waiting</h3><p class="text-sm text-slate-700">Booking waits and bottlenecks across the network.</p><span class="mt-3 inline-block text-sm font-semibold text-slate-900 group-hover:text-brand-800">Open →</span></a>
+      <a href="#policy-simulator" class="group bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-card transition"><span class="inline-block px-2.5 py-0.5 rounded-full bg-healing-50 text-healing-700 border border-emerald-200 text-xs font-semibold mb-3">Policy Simulator</span><h3 class="font-bold text-slate-900 mb-1">Equity vs. completion</h3><p class="text-sm text-slate-700">Model policy levers on a Pareto frontier before going live.</p><span class="mt-3 inline-block text-sm font-semibold text-slate-900 group-hover:text-brand-800">Open →</span></a>
+    </div>
+  </section>
+
+  <section class="py-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto border-t border-slate-200/80">
+    <div class="text-center max-w-2xl mx-auto mb-12">
+      <span class="inline-block px-3 py-1 rounded-full bg-healing-50 text-healing-700 border border-emerald-200 text-xs font-semibold mb-2">Clinical Governance &amp; Impact</span>
+      <h2 class="text-3xl font-extrabold text-slate-950 tracking-tight">Measurable outcomes across screening cohorts</h2>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"><div class="text-3xl font-extrabold text-brand-800">84.5%</div><div class="text-xs font-bold text-slate-900 mt-1 mb-2">30-day Diagnostic Closure</div><p class="text-xs text-slate-700 leading-relaxed">Up from 49.2% regional baseline (simulated).</p></div>
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"><div class="text-3xl font-extrabold text-slate-900">16.4 d</div><div class="text-xs font-bold text-slate-900 mt-1 mb-2">Median Turnaround Time</div><p class="text-xs text-slate-700 leading-relaxed">Reduced from 38.6 days via queue balancing and cross-booking.</p></div>
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"><div class="text-3xl font-extrabold text-healing-600">0</div><div class="text-xs font-bold text-slate-900 mt-1 mb-2">Lost-to-Follow-Up</div><p class="text-xs text-slate-700 leading-relaxed">Zero high-risk positive cases dropped during the pilot.</p></div>
+      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"><div class="text-3xl font-extrabold text-slate-900">100%</div><div class="text-xs font-bold text-slate-900 mt-1 mb-2">Audit-Ready Provenance</div><p class="text-xs text-slate-700 leading-relaxed">Timestamped audit trail for governance and quality checks.</p></div>
+    </div>
+  </section>
+
+  <section class="bg-slate-950 text-white py-16 px-4">
+    <div class="max-w-4xl mx-auto text-center space-y-6">
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Bring the next step into view.</h2>
+      <a href="#case-board" class="inline-block px-7 py-3 rounded-full bg-white hover:bg-slate-100 text-slate-950 font-semibold text-sm transition">Open the Baton demo</a>
+    </div>
+  </section>
+</div>
+
+<!-- ============ PAGE: CASE BOARD ============ -->
+<div id="page-case-board" data-page class="hidden">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-50 text-brand-800 border border-brand-200 text-[11px] font-bold uppercase tracking-wider"><span class="w-1.5 h-1.5 rounded-full bg-brand-600 animate-pulse"></span>Clinical Dispatch Feed</span>
+        <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Case Board — Staff Daily Worklist</h1>
+        <p class="text-sm text-slate-700 mt-1">Central Command Abu Dhabi · Last synchronized 2 mins ago · Track screening-to-care handovers and intercept pathway leakage.</p>
+      </div>
+      <div class="flex gap-2">
+        <button class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50 shadow-sm" onclick="toast('Roster exported','Shift roster downloaded (demo).')">Export Shift Roster</button>
+        <button class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-brand-800 shadow-sm" onclick="toast('Manual ingestion','Opened manual ingestion form (demo).')">+ Manual Ingestion</button>
+      </div>
+    </div>
+
+    <!-- KPI chips -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-600">Total Active</p><p class="text-2xl font-extrabold text-slate-900">328</p></div>
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-600">Within SLA</p><p class="text-2xl font-extrabold text-healing-700">314 <span class="text-xs font-bold bg-healing-50 border border-emerald-200 px-1.5 py-0.5 rounded-full align-middle">95.7%</span></p></div>
+      <div class="bg-red-50 rounded-xl border border-red-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-red-800">Critical SLA Breach</p><p class="text-2xl font-extrabold text-red-700">14 <span class="text-xs font-bold bg-red-600 text-white px-1.5 py-0.5 rounded-full align-middle">&gt;30d</span></p></div>
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-600">Unassigned</p><p class="text-2xl font-extrabold text-slate-900">12</p></div>
+    </div>
+
+    <!-- Critical banner (red = patient-safety / SLA breach only) -->
+    <div class="bg-white rounded-xl border border-red-200 shadow-sm relative overflow-hidden p-4 pl-6">
+      <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600"></div>
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div>
+          <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-red-800">Critical Care Gap — Immediate Escalation (2 cases)</span><span class="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px] font-bold uppercase tracking-wide">High risk of loss</span></div>
+          <p class="text-sm text-slate-700 mt-0.5">FIT-positive patients have exceeded the diagnostic safety window, or pathology results remain unread.</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="isolateUrgent()" class="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 shadow-sm">Isolate Breached Cases</button>
+          <button onclick="toast('Navigators dispatched','Care navigators notified (demo).')" class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50">Dispatch Care Navigators</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-3 flex flex-col xl:flex-row gap-3 xl:items-center justify-between">
+      <div class="flex flex-wrap items-center gap-3 flex-1">
+        <input id="board-search" type="text" placeholder="Search by Patient ID, National ID, or Name…" class="min-w-[260px] flex-1 max-w-md px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder:text-slate-600"/>
+        <div id="stage-tabs" class="flex items-center p-1 bg-slate-100 rounded-lg gap-0.5 flex-wrap"></div>
+      </div>
+      <select class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800">
+        <option>All Abu Dhabi Clinics</option><option>Al Bateen Healthcare Center</option><option>Al Mushrif Primary Clinic</option><option>Cleveland Clinic Abu Dhabi</option><option>Sheikh Shakhbout Medical City</option>
+      </select>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
+      <div class="xl:col-span-9 bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
+        <div class="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <div class="flex items-center gap-2"><span class="text-sm font-bold text-slate-900">Queue Dispatch List</span><span id="board-count" class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-semibold"></span></div>
+          <span class="text-[11px] font-semibold text-slate-700">Sorted by urgency / time overdue</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead><tr class="text-[11px] uppercase tracking-wider text-slate-700 bg-white border-b border-slate-200">
+              <th class="py-2 px-5 font-bold">Case &amp; Patient</th><th class="py-2 px-3 font-bold">Pathway Stage</th><th class="py-2 px-3 font-bold">Assigned Lead</th><th class="py-2 px-3 font-bold">Queue SLA</th><th class="py-2 px-5 font-bold text-right">Action</th>
+            </tr></thead>
+            <tbody id="board-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+        <div class="px-5 py-3 flex items-center justify-between border-t border-slate-200 text-xs text-slate-700">
+          <span id="board-foot"></span>
+          <div class="flex items-center gap-1"><span class="px-2.5 py-1 rounded-md bg-slate-900 text-white font-bold">1</span><span class="px-2.5 py-1 rounded-md bg-slate-100">2</span><span class="px-2.5 py-1 rounded-md bg-slate-100">3</span><span>…</span><span class="px-2.5 py-1 rounded-md bg-slate-100">47</span></div>
+        </div>
+      </div>
+
+      <div class="xl:col-span-3 flex flex-col gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-4">
+          <div class="flex items-center justify-between"><span class="text-sm font-bold text-slate-900">Queue SLA Integrity</span><span class="text-xs font-semibold text-healing-700">▲ 3.2%</span></div>
+          <p class="text-xs text-slate-700 mt-1">Guidelines mandate diagnostic colonoscopy booking within <strong>14 calendar days</strong> of a positive result.</p>
+          <div class="relative flex items-center justify-center py-3">
+            <svg class="w-32 h-32 -rotate-90" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#e2e8f0" stroke-width="10"/>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#059669" stroke-width="10" stroke-dasharray="235.5 314"/>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#d97706" stroke-width="10" stroke-dasharray="65.1 314" stroke-dashoffset="-235.5"/>
+              <circle cx="60" cy="60" r="50" fill="none" stroke="#dc2626" stroke-width="10" stroke-dasharray="13.4 314" stroke-dashoffset="-300.6"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center"><span class="text-xl font-extrabold text-slate-900">95.7%</span><span class="text-[11px] text-slate-700">Within SLA</span></div>
+          </div>
+          <div class="space-y-1.5 text-xs">
+            <div class="flex justify-between"><span class="flex items-center gap-2 text-slate-800"><span class="w-2.5 h-2.5 rounded-full bg-healing-600"></span>Optimal (≤7d)</span><b class="text-slate-900">246</b></div>
+            <div class="flex justify-between"><span class="flex items-center gap-2 text-slate-800"><span class="w-2.5 h-2.5 rounded-full bg-amber-600"></span>Caution (8–14d)</span><b class="text-slate-900">68</b></div>
+            <div class="flex justify-between"><span class="flex items-center gap-2 text-red-800 font-medium"><span class="w-2.5 h-2.5 rounded-full bg-red-600"></span>Critical (&gt;14d)</span><b class="text-red-700">14</b></div>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-4 space-y-3">
+          <span class="text-sm font-bold text-slate-900">Diagnostic Slot Availability</span>
+          <div><div class="flex justify-between text-xs"><span class="font-semibold text-slate-900">Cleveland Clinic AD</span><b class="text-healing-700">18 slots open</b></div><div class="h-2 bg-slate-100 rounded-full mt-1"><div class="h-2 rounded-full bg-healing-600" style="width:78%"></div></div><p class="text-[11px] text-slate-700 mt-0.5">Next: Tomorrow, 10:15 AM</p></div>
+          <div><div class="flex justify-between text-xs"><span class="font-semibold text-slate-900">Sheikh Shakhbout MC</span><b class="text-healing-700">9 slots open</b></div><div class="h-2 bg-slate-100 rounded-full mt-1"><div class="h-2 rounded-full bg-healing-600" style="width:45%"></div></div><p class="text-[11px] text-slate-700 mt-0.5">Next: Thu, 08:00 AM</p></div>
+          <div><div class="flex justify-between text-xs"><span class="font-semibold text-slate-900">Mediclinic Airport Rd</span><b class="text-amber-800">2 slots open</b></div><div class="h-2 bg-slate-100 rounded-full mt-1"><div class="h-2 rounded-full bg-amber-500" style="width:92%"></div></div><p class="text-[11px] text-slate-700 mt-0.5">Next: Oct 30, 02:00 PM</p></div>
+        </div>
+        <div class="bg-brand-50 border border-brand-200 rounded-2xl p-4 text-xs text-slate-800"><b class="text-brand-900">Coordination Protocol v4.2</b><br/>Prioritize patients with FIT &gt;100 μg/g before end-of-shift handover at 17:00 GST.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAGE: CASE RECORD ============ -->
+<div id="page-case-record" data-page class="hidden">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-700">
+      <div class="flex items-center gap-1.5"><a href="#case-board" class="hover:text-brand-800 underline-offset-2 hover:underline">Case Board</a><span>›</span><span>Cases</span><span>›</span><b class="text-brand-800">FIT-26771</b><span class="ml-2 px-2 py-0.5 rounded-full bg-brand-50 text-brand-800 border border-brand-200 font-semibold">CRC PROTOCOL v3.2</span></div>
+      <div class="flex items-center gap-3"><span class="flex items-center gap-1.5 font-medium"><span class="w-2 h-2 rounded-full bg-amber-500"></span>14-day SLA target: Jan 28 · 7 days remaining</span><button class="px-2.5 py-1 rounded bg-white border border-slate-300 font-medium text-slate-800 hover:bg-slate-50" onclick="window.print()">Export Summary</button></div>
+    </div>
+
+    <!-- Patient banner -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5">
+      <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-full bg-brand-100 text-brand-800 flex items-center justify-center text-xl font-bold shrink-0">FA</div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h1 class="text-2xl font-extrabold text-slate-950 tracking-tight">Fatima Al Hosani</h1>
+              <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-xs font-medium">58y · Female</span>
+              <span class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold">Referral Returned — Action Required</span>
+            </div>
+            <p class="text-xs text-slate-700 mt-1">MRN <b class="text-slate-900">P-104829</b> · Civil ID <b class="text-slate-900">784-****-1234</b> · Primary care <b class="text-slate-900">Al Bateen Clinic</b> · Tawakkalna &amp; mobile confirmed</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50" onclick="toast('Contact documented','Contact attempt logged to audit trail.')">Document Contact</button>
+          <button class="px-4 py-2 rounded-lg bg-brand-50 border border-brand-200 text-sm font-semibold text-brand-800 hover:bg-brand-100" onclick="document.getElementById('alt-facilities').scrollIntoView({behavior:'smooth'})">Re-assign Destination</button>
+          <button class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-brand-800" onclick="toast('Step completed','Marked complete (demo).')">Complete Step</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm">
+        <div><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Trigger</p><p class="font-semibold text-brand-800">FIT Positive (Quantitative)</p><p class="text-xs text-slate-700">148 μg Hb/g · Jan 14</p></div>
+        <div><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Care Coordinator</p><p class="font-semibold text-slate-900">Huda Al Mansour</p><p class="text-xs text-slate-700">Lead Navigator</p></div>
+        <div><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Turnaround SLA</p><p class="font-semibold text-amber-800">7 days remaining</p><p class="text-xs text-slate-700">Target colonoscopy: Jan 28</p></div>
+        <div><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Patient Status</p><p class="font-semibold text-slate-900">Informed &amp; anxious</p><p class="text-xs text-slate-700">Agreed to expedited review</p></div>
+      </div>
+    </div>
+
+    <!-- Pathway + hard lock -->
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 overflow-x-auto">
+      <div class="flex items-center justify-between mb-4 gap-3">
+        <div><h2 class="text-lg font-bold text-slate-900">End-to-End CRC Screening Pathway</h2><p class="text-xs text-slate-700">Standard 14-Day Rapid Triage Protocol</p></div>
+      </div>
+      <div class="min-w-[840px] relative py-2">
+        <div class="absolute top-[34px] left-12 right-12 h-0.5 bg-slate-200"></div>
+        <div class="grid grid-cols-5 gap-4 relative">
+          <div class="flex flex-col items-center text-center"><div class="w-12 h-12 rounded-full bg-healing-600 text-white flex items-center justify-center shadow-md text-lg font-bold">✓</div><span class="text-xs font-bold text-slate-900 mt-3">Positive FIT Result</span><span class="text-[11px] font-semibold text-healing-700">Jan 14</span><span class="text-[11px] text-slate-700">Lab verified</span></div>
+          <div class="flex flex-col items-center text-center"><div class="w-12 h-12 rounded-full bg-healing-600 text-white flex items-center justify-center shadow-md text-lg font-bold">✓</div><span class="text-xs font-bold text-slate-900 mt-3">Patient Outreach</span><span class="text-[11px] font-semibold text-healing-700">Jan 16</span><span class="text-[11px] text-slate-700">Phone + Arabic briefing</span></div>
+          <div class="flex flex-col items-center text-center"><div class="w-12 h-12 rounded-full bg-amber-100 text-amber-800 border-2 border-amber-500 ring-4 ring-amber-100 flex items-center justify-center shadow-md text-lg font-bold">!</div><span class="text-xs font-bold text-amber-800 mt-3">GI Referral</span><span class="text-[11px] font-semibold text-amber-800">Returned Jan 21</span><span class="text-[11px] text-slate-700">Capacity full at Central Digestive</span></div>
+          <div class="flex flex-col items-center text-center"><div class="w-12 h-12 rounded-full bg-brand-50 border-2 border-brand-500 text-brand-800 flex items-center justify-center shadow-sm text-base">📅</div><span class="text-xs font-bold text-slate-800 mt-3">Colonoscopy Booking</span><span class="text-[11px] font-semibold text-brand-800">Pending destination</span><span class="text-[11px] text-slate-700">Re-routing in progress</span></div>
+          <div class="flex flex-col items-center text-center">
+            <div class="relative w-12 h-12 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg ring-4 ring-slate-300 text-base">🧬<span class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white text-slate-900 border border-slate-300 flex items-center justify-center text-[10px]">🔒</span></div>
+            <span class="text-xs font-bold text-slate-950 mt-3">Biopsy &amp; Closure</span>
+            <span class="text-[11px] font-bold text-slate-900">Hard Lock Active</span>
+            <span class="text-[11px] text-slate-700">Mandatory post-pathology</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hard lock banner -->
+      <div id="lock-banner" class="mt-4 p-4 rounded-xl border border-slate-300 locked-stripes">
+        <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center shrink-0">🔒</div>
+            <div>
+              <div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-slate-950">Step 10 is Locked: Pathology Watch Active</span><span class="px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-900 text-[11px] font-semibold">Clinical Safety Hard Lock</span></div>
+              <p class="text-sm text-slate-800 mt-1">Post-procedure histology must be verified before case resolution. To close this case, <b>upload a Biopsy Result</b> and select either <b>MDT Oncology Referral</b> or <b>3-Year Surveillance Recall</b>.</p>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <label class="block text-xs font-semibold text-slate-900">1. Biopsy Result
+            <input id="biopsy-file" type="file" accept=".pdf,.png,.jpg,.jpeg" class="mt-1 block w-full text-xs text-slate-800 bg-white border border-slate-300 rounded-lg file:mr-3 file:py-2 file:px-3 file:border-0 file:bg-slate-900 file:text-white file:font-semibold"/>
+          </label>
+          <fieldset class="text-xs font-semibold text-slate-900">
+            <legend>2. Disposition</legend>
+            <div class="mt-1 flex flex-col gap-1.5">
+              <label class="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-2"><input type="radio" name="dispo" value="MDT Oncology Referral" class="text-brand-800"/><span>MDT Oncology Referral</span></label>
+              <label class="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-2"><input type="radio" name="dispo" value="3-Year Surveillance Recall" class="text-brand-800"/><span>3-Year Surveillance Recall</span></label>
+            </div>
+          </fieldset>
+          <div>
+            <button id="close-btn" type="button" disabled class="w-full px-4 py-2.5 rounded-lg bg-slate-200 text-slate-700 border border-slate-300 text-sm font-semibold cursor-not-allowed flex items-center justify-center gap-2">🔒 Close Case (Requires Biopsy Result + Disposition)</button>
+            <p id="lock-status" class="text-[11px] text-slate-800 mt-1">Missing: biopsy result upload · disposition selection</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <!-- LEFT -->
+      <div class="lg:col-span-2 space-y-5">
+        <!-- Returned alert (amber = workflow blocker) -->
+        <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <div class="flex flex-wrap items-center gap-2"><h3 class="text-sm font-bold text-amber-900">Referral Returned from Central Digestive Clinic</h3><span class="px-2 py-0.5 rounded-full bg-white border border-amber-300 text-amber-900 text-[11px] font-semibold">Workflow Blocker</span></div>
+            <p class="text-sm text-slate-800 mt-1">Reason from receiving registrar: <b>“14-day rapid slot threshold exceeded; next available intake slot is in 36 days.”</b></p>
+            <p class="text-xs text-slate-700 mt-1">Returned Jan 21 at 14:18 GST · Central Digestive intake desk</p>
+          </div>
+          <button class="px-3 py-2 rounded-lg bg-white border border-amber-300 text-amber-900 text-sm font-semibold hover:bg-amber-100 whitespace-nowrap" onclick="toast('Return payload','Opened return payload (demo).')">View Return Payload</button>
+        </div>
+
+        <!-- Alternate facilities -->
+        <div id="alt-facilities" class="bg-white rounded-2xl border border-slate-200 shadow-card p-5">
+          <div class="flex items-center justify-between mb-1"><h3 class="text-lg font-bold text-slate-900">Capacity-Aware Routing Engine</h3><span class="text-xs font-semibold text-healing-700 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-healing-600"></span>Live queue depth</span></div>
+          <p class="text-sm text-slate-700 mb-3">Effective wait = published wait × (1 + queue pressure). Central Digestive is 8.0 wks on paper and <b>11.2 wks effective</b> (queue 71 / 142% capacity) — that is why FIT-26771 is being pulled off Central and toward Northview or Riverside.</p>
+          <div class="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-slate-800">Barrier-matched dispatch is on: the patient profile records <b>Female Specialist Requested</b>, so clinics with a confirmed female endoscopist are ranked first even when a male-staffed site is slightly nearer.</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="p-4 rounded-xl border-2 border-healing-500 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <span class="px-2 py-0.5 rounded-full bg-healing-50 text-healing-700 border border-emerald-200 text-[11px] font-bold">Recommended Match</span>
+                    <h4 class="text-base font-bold text-slate-900 mt-2">Riverside GI Centre</h4>
+                    <p class="text-xs text-slate-700">Specialized Endoscopy Unit · 4.8 km</p>
+                  </div>
+                  <div class="text-right"><span class="text-xl font-extrabold text-brand-800">3.5 d</span><p class="text-[11px] text-slate-700">Effective wait</p><p class="text-[11px] text-slate-500">Published 4 d</p></div>
+                </div>
+                <div class="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-healing-50 border border-emerald-300 text-healing-700 text-xs font-bold">♀ Female Endoscopist Available <span class="font-medium text-slate-800">· Dr. H. Al Mazrouei, Friday</span></div>
+                <div class="mt-3 pt-3 border-t border-slate-100 text-xs space-y-1 text-slate-800">
+                  <div class="flex justify-between"><span>Contract</span><b class="text-healing-700">In-Network Tier 1</b></div>
+                  <div class="flex justify-between"><span>Colonoscopy slots</span><b>3 this Friday</b></div>
+                </div>
+              </div>
+              <button class="mt-4 w-full py-2.5 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-sm font-semibold transition" onclick="tryDispatch('Riverside GI Centre')">Select &amp; Dispatch Referral →</button>
+            </div>
+            <div class="p-4 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200 text-[11px] font-bold">Secondary Option</span>
+                    <h4 class="text-base font-bold text-slate-900 mt-2">Northview Hospital</h4>
+                    <p class="text-xs text-slate-700">Dept. of Gastroenterology · 11.2 km</p>
+                  </div>
+                  <div class="text-right"><span class="text-xl font-extrabold text-slate-900">2.4 wks</span><p class="text-[11px] text-slate-700">Effective wait</p><p class="text-[11px] text-slate-500">Published 3.0 wks</p></div>
+                </div>
+                <div class="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold">No female endoscopist confirmed before next Tuesday</div>
+                <div class="mt-3 pt-3 border-t border-slate-100 text-xs space-y-1 text-slate-800">
+                  <div class="flex justify-between"><span>Contract</span><b class="text-healing-700">In-Network Approved</b></div>
+                  <div class="flex justify-between"><span>Colonoscopy slots</span><b>Next week Tuesday</b></div>
+                </div>
+              </div>
+              <button class="mt-4 w-full py-2.5 rounded-lg bg-brand-50 border border-brand-200 text-brand-800 text-sm font-semibold hover:bg-brand-100 transition" onclick="tryDispatch('Northview Hospital')">Route overflow to Northview →</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Diagnostic & Triage Profile -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-5">
+          <h3 class="text-lg font-bold text-slate-900">Diagnostic &amp; Triage Profile</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
+            <div><span class="text-xs font-bold text-brand-800 uppercase tracking-wider">Indications &amp; Lab Work</span><ul class="mt-1 space-y-1 text-slate-800 list-disc list-inside"><li>Positive FIT (148 μg Hb/g stool)</li><li>No active melena at primary intake</li><li>Previous colonoscopy: none on record</li></ul></div>
+            <div><span class="text-xs font-bold text-brand-800 uppercase tracking-wider">Comorbidities &amp; Risk Factors</span><ul class="mt-1 space-y-1 text-slate-800 list-disc list-inside"><li>Hypertension (controlled, Amlodipine 5 mg)</li><li>OTC oral iron supplement (self-reported)</li><li>No anticoagulants · No family history</li></ul></div>
+          </div>
+
+          <!-- NEW: Readiness checklist + SBAR -->
+          <div id="readiness-sbar" class="rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div><h4 class="text-sm font-bold text-slate-900">Pre-Referral Readiness Checklist &amp; Async SBAR e-Consult</h4><p class="text-xs text-slate-700">All three safety items must be cleared before a referral can leave primary care — this is how the “16 rejected referrals” leak is stopped at source.</p></div>
+              <span id="check-count" class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">2 of 3 criteria met</span>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-0">
+              <div id="readiness-panel" class="lg:col-span-2 p-4 border-b lg:border-b-0 lg:border-r border-slate-200 space-y-2">
+                <p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Pre-Referral Readiness Checklist</p>
+                <label class="flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50"><input type="checkbox" checked class="readiness mt-0.5 rounded text-healing-600"/><span><b class="text-sm text-slate-900 block">eGFR / Renal Labs (within 90 days)</b><span class="text-xs text-slate-700">eGFR 78 mL/min/1.73m² — normal</span></span></label>
+                <label class="flex items-start gap-2.5 p-2.5 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50"><input type="checkbox" checked class="readiness mt-0.5 rounded text-healing-600"/><span><b class="text-sm text-slate-900 block">Anticoagulation / Blood Thinner Hold Plan</b><span class="text-xs text-slate-700">No warfarin/DOAC/antiplatelet — no hold needed</span></span></label>
+                <label class="flex items-start gap-2.5 p-2.5 rounded-lg border border-amber-200 bg-amber-50 cursor-pointer"><input type="checkbox" class="readiness mt-0.5 rounded text-healing-600"/><span><b class="text-sm text-amber-900 block">ASA Sedation Risk Score</b><span class="text-xs text-slate-800">Provisional ASA II — pending anaesthesiology sign-off</span></span></label>
+              </div>
+              <div id="sbar-panel" class="lg:col-span-3 p-4 space-y-3">
+                <div class="flex items-center justify-between"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Async SBAR e-Consult Thread</p><span class="text-[11px] text-slate-700">Encrypted EMR relay · cardiac risk without bouncing the referral</span></div>
+                <div id="sbar-thread" class="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  <div class="p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+                    <div class="flex justify-between text-xs mb-1"><b class="text-brand-800">Dr. Layla Haddad · PCP (Al Bateen Clinic)</b><span class="text-slate-700">Jan 21 · 14:45</span></div>
+                    <p class="text-sm text-slate-900"><b class="text-brand-800">Situation:</b> 58F, FIT+ 148 μg/g, requesting colonoscopy at Riverside GI. <b class="text-brand-800">Background:</b> controlled hypertension on Amlodipine; takes OTC iron. <b class="text-brand-800">Question:</b> any cardiac risk concern for moderate sedation? No chest pain or syncope reported.</p>
+                  </div>
+                  <div class="p-3 rounded-xl bg-healing-50 border border-emerald-200 shadow-sm">
+                    <div class="flex justify-between text-xs mb-1"><b class="text-healing-700">Dr. K. Vance · GI Triage (Riverside GI)</b><span class="text-slate-700">Jan 21 · 15:10</span></div>
+                    <p class="text-sm text-slate-900"><b class="text-healing-700">Assessment / Recommendation:</b> Low cardiac risk on history; <b>patient accepted</b> — Friday slot allocated. <b>Medication hold:</b> stop oral iron 5 days before the procedure; continue Amlodipine with a sip of water. Final ASA score to be confirmed by anaesthesiology.</p>
+                  </div>
+                </div>
+                <form id="sbar-form" class="flex gap-2">
+                  <input id="sbar-input" type="text" placeholder="Reply to GI Triage…" class="flex-1 px-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-600"/>
+                  <button class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-sm font-semibold">Send</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Outreach history -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5">
+          <div class="flex items-center justify-between mb-3"><h3 class="text-lg font-bold text-slate-900">Outreach History &amp; Patient Communication</h3><span class="text-xs font-semibold text-brand-800">4 touches</span></div>
+          <div class="space-y-3">
+            <div class="p-3 rounded-xl border border-slate-200 flex gap-3"><div class="w-8 h-8 rounded-full bg-healing-50 text-healing-700 flex items-center justify-center shrink-0">☎</div><div class="flex-1"><div class="flex justify-between text-sm"><b class="text-slate-900">Outreach call — successful engagement</b><span class="text-xs text-slate-700">Jan 16 · 10:24</span></div><p class="text-sm text-slate-800 mt-1">Huda spoke with Fatima in Arabic, explained the FIT result and the 14-day colonoscopy window. Patient anxious about bowel prep; Arabic flyer sent via WhatsApp and Tawakkalna.</p><div class="flex gap-2 mt-2 text-[11px]"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800">Spoken: Arabic</span><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800">14m 20s</span></div></div></div>
+            <div class="p-3 rounded-xl border border-slate-200 flex gap-3"><div class="w-8 h-8 rounded-full bg-brand-50 text-brand-800 flex items-center justify-center shrink-0">✉</div><div class="flex-1"><div class="flex justify-between text-sm"><b class="text-slate-900">Automated SMS delivered</b><span class="text-xs text-slate-700">Jan 15 · 09:12</span></div><p class="text-sm text-slate-800 mt-1">Clinical alert sent to +971-50-***-9821 with secure portal link. Read receipt verified.</p></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="space-y-5">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 relative overflow-hidden">
+          <div class="absolute top-0 left-0 right-0 h-1.5 bg-brand-700"></div>
+          <p class="text-[11px] uppercase font-bold tracking-wider text-brand-800 mt-1">Clinical Copilot · Next step</p>
+          <h3 class="text-lg font-bold text-slate-900 mt-1">Re-route to Riverside GI</h3>
+          <p class="text-sm text-slate-800 mt-1">Riverside GI has expedited capacity and a female endoscopist on Friday, matching the patient’s stated preference. Dispatch to lock an intake date within 4 days.</p>
+          <div class="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5 text-slate-800">
+            <div class="flex justify-between"><span>Pre-authorization</span><b class="text-healing-700">Auto-approved (DOH-09)</b></div>
+            <div class="flex justify-between"><span>Transport needed</span><b>Declined (family)</b></div>
+          </div>
+          <button class="mt-3 w-full py-2.5 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-sm font-semibold transition" onclick="tryDispatch('Riverside GI Centre')">Send Priority Referral Now</button>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
+          <h3 class="text-sm font-bold text-slate-900">Patient Contact Profile</h3>
+          <div class="space-y-2 text-xs">
+            <div class="flex justify-between p-2 rounded bg-slate-50"><span class="text-slate-700">Preferred Language</span><b class="text-slate-900">Arabic (native), English</b></div>
+            <div class="flex justify-between items-center gap-2 p-2 rounded bg-healing-50 border border-emerald-200"><span class="text-slate-800 font-medium">Provider Preference</span><b class="text-healing-700">♀ Female Specialist Requested</b></div>
+            <div class="flex justify-between p-2 rounded bg-slate-50"><span class="text-slate-700">Primary Mobile</span><b class="text-slate-900">+971 50 382 9821</b></div>
+            <div class="flex justify-between p-2 rounded bg-slate-50"><span class="text-slate-700">Emergency Proxy</span><b class="text-slate-900">Tariq Al Hosani (son)</b></div>
+            <div class="flex justify-between p-2 rounded bg-slate-50"><span class="text-slate-700">Best Contact Window</span><b class="text-slate-900">09:00–13:00 GST</b></div>
+          </div>
+          <div class="flex gap-2"><button class="flex-1 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800 text-xs font-semibold hover:bg-brand-100" onclick="toast('Calling','Dialling patient (demo).')">Call Patient</button><button class="flex-1 py-2 rounded-lg bg-brand-50 border border-brand-200 text-brand-800 text-xs font-semibold hover:bg-brand-100" onclick="toast('SMS','SMS composer opened (demo).')">Send SMS</button></div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
+          <div class="flex justify-between items-center"><h3 class="text-sm font-bold text-slate-900">Add Coordinator Note</h3><span class="text-[11px] text-slate-700">Auto-saved to EHR</span></div>
+          <div class="flex flex-wrap gap-1.5 text-[11px]">
+            <button class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200" data-tag="Attempted call">+ Attempted Call</button>
+            <button class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200" data-tag="Sent SMS">+ Sent SMS</button>
+            <button class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200" data-tag="Consulted GI hub">+ Consulted GI Hub</button>
+            <button class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 hover:bg-slate-200" data-tag="Bowel prep sent">+ Bowel Prep Sent</button>
+          </div>
+          <textarea id="note-box" class="w-full h-24 p-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 placeholder:text-slate-600 resize-none" placeholder="Log observations, barriers or transfer instructions…"></textarea>
+          <div class="flex items-center justify-between"><label class="flex items-center gap-2 text-xs text-slate-800"><input type="checkbox" checked class="rounded text-brand-800"/>Notify primary physician</label><button class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-xs font-semibold" onclick="toast('Note saved','Coordinator note saved to EHR.')">Save Note</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAGE: FACILITIES ============ -->
+<div id="page-facilities" data-page class="hidden">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <div>
+      <p class="text-[11px] uppercase font-bold tracking-wider text-brand-800">Network Surveillance › Endoscopy Capacity &amp; Bottlenecks</p>
+      <h1 class="text-3xl font-extrabold tracking-tight text-slate-950">Facilities &amp; Network Bottlenecks</h1>
+      <p class="text-sm text-slate-700 mt-1">Monitor diagnostic colonoscopy wait times, referral queues and throughput constraints · Diagnostic Colonoscopy · Last 30 days</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Participating Facilities</p><p class="text-3xl font-extrabold mt-2">18</p><p class="text-xs text-slate-700 mt-1 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-healing-600"></span>100% active telemetry</p></div>
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Median Network Wait</p><p class="text-3xl font-extrabold mt-2">4.2 <span class="text-base font-semibold text-slate-700">weeks</span></p><p class="text-xs text-slate-700 mt-1"><span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 font-semibold">Target ≤ 4.0</span> +0.3 vs last mo</p></div>
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Cases in Booking Queue</p><p class="text-3xl font-extrabold mt-2">184</p><p class="text-xs mt-1"><span class="px-2 py-0.5 rounded-full bg-brand-50 text-brand-800 border border-brand-200 font-semibold">42 fast-tracked</span></p></div>
+      <div class="bg-red-50 rounded-2xl border border-red-200 shadow-card p-5"><p class="text-[11px] uppercase font-bold tracking-wider text-red-800">Critical SLA Violations</p><p class="text-3xl font-extrabold mt-2 text-red-700">2 <span class="text-sm font-semibold">facilities</span></p><p class="text-xs mt-1"><span class="px-2 py-0.5 rounded-full bg-red-600 text-white font-bold">Exceeds 30d SLA</span></p></div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
+      <div id="bottleneck-radar" class="xl:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-card p-5">
+        <div class="flex justify-between items-center mb-3"><div><h2 class="text-lg font-bold text-slate-900">Facility Bottleneck Radar</h2><p class="text-xs text-slate-700">Stage-by-stage latency: Referral Intake vs Booking vs Report Review — not just “slow”</p></div><span class="px-2 py-1 rounded bg-slate-100 text-slate-800 text-[11px] font-semibold">Target SLA: 30 calendar days</span></div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-sm">
+          <thead><tr class="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-700"><th class="py-2.5 px-3">Facility</th><th class="py-2.5 px-3">Wait</th><th class="py-2.5 px-3">Queue</th><th class="py-2.5 px-3">Stage latency</th><th class="py-2.5 px-3 text-right">Status</th></tr></thead>
+          <tbody class="divide-y divide-slate-100" id="fac-body"></tbody>
+        </table></div>
+        <div class="flex gap-4 text-[11px] text-slate-700 pt-3"><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-brand-800 mr-1"></span>Referral acceptance</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-brand-500 mr-1"></span>Booking</span><span><span class="inline-block w-2.5 h-2.5 rounded-sm bg-slate-400 mr-1"></span>Report review</span><span class="ml-auto">Showing 4 of 18 facilities</span></div>
+      </div>
+      <div class="xl:col-span-4 space-y-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5">
+          <h3 class="text-lg font-bold text-slate-900">Delay Drivers</h3><p class="text-xs text-slate-700 mb-3">Primary root causes of colonoscopy backlog</p>
+          <div class="space-y-3" id="drivers"></div>
+        </div>
+        <div class="bg-brand-50 border border-brand-200 rounded-2xl p-4 text-sm text-slate-900"><b class="text-brand-900 text-xs uppercase tracking-wider">Synthesized recommendation</b><p class="mt-1">Directing <b>25 non-complex cases</b> from Central Digestive Clinic to Northview Hospital is projected to bring network median wait under <b>3.7 weeks</b> within 12 business days.</p></div>
+      </div>
+    </div>
+
+    <div id="rebalance-card" class="bg-white rounded-2xl border border-slate-200 shadow-card p-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+        <div><h2 class="text-lg font-bold text-slate-900">Interactive Traffic Rebalancing</h2><p class="text-sm text-slate-700">Divert a quota of routine patients from saturated Central Digestive Clinic to under-utilized Northview Hospital.</p></div>
+        <div class="flex gap-2"><button class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50" onclick="toast('Report exported','Capacity report downloaded (demo).')">Export Capacity Report</button><button class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-sm font-semibold" onclick="toast('Navigators notified','Availability broadcast sent.')">Notify Navigators</button></div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center bg-slate-50 border border-slate-200 p-4 rounded-xl">
+        <div class="lg:col-span-4 bg-white p-4 rounded-lg border border-slate-200"><p class="text-[11px] uppercase font-bold tracking-wider text-red-800">Origin (constrained)</p><p class="font-bold text-slate-900">Central Digestive Clinic</p><p class="text-xs text-slate-700">Queue 71 · Wait 8.0 weeks</p></div>
+        <div class="lg:col-span-4 px-2">
+          <div class="flex justify-between text-sm"><b>Transfer quota</b><b id="rb-display" class="text-brand-800">35% (25 referrals)</b></div>
+          <input id="rb-slider" type="range" min="10" max="60" step="5" value="35" class="w-full mt-2"/>
+          <div class="flex justify-between text-[11px] text-slate-700"><span>10% (7)</span><span>60% (43)</span></div>
+        </div>
+        <div class="lg:col-span-4 bg-white p-4 rounded-lg border border-slate-200 flex items-center justify-between gap-2"><div><p class="text-[11px] uppercase font-bold tracking-wider text-healing-700">Target receiving</p><p class="font-bold text-slate-900">Northview Hospital</p><p class="text-xs text-slate-700">48% capacity free · 3.0 wk</p></div><button id="rb-apply" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-xs font-semibold">Apply Diversion</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAGE: POLICY SIMULATOR ============ -->
+<div id="page-policy-simulator" data-page class="hidden">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div class="max-w-2xl">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-brand-50 text-brand-800 border border-brand-200 text-[11px] font-bold uppercase tracking-wider"><span class="w-1.5 h-1.5 rounded-full bg-brand-600 animate-pulse"></span>Scenario Modeling Engine</span>
+        <h1 class="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Policy Simulator — Screening Pathway Optimization</h1>
+        <p class="text-sm text-slate-700 mt-1">Test interventions and model the impact on diagnostic completion, language equity and SLA compliance. Figures are modelled estimates on synthetic data.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="sim-reset" class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50">Reset to Baseline</button>
+        <button id="sim-save" class="px-4 py-2 rounded-lg bg-white border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50">Save Scenario</button>
+        <button id="sim-run" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-brand-800 text-white text-sm font-semibold shadow-sm">Run Simulation</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-5">
+      <!-- Levers -->
+      <div class="xl:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-5 self-start">
+        <h2 class="text-lg font-bold text-slate-900">Intervention Levers</h2>
+        <div>
+          <div class="flex justify-between"><label for="lv-caseload" class="text-sm font-semibold text-slate-900">Navigator Caseload Ratio</label><b id="lv-caseload-v" class="text-brand-800">50 : 1</b></div>
+          <p class="text-xs text-slate-700 mt-0.5">Active positive cases per certified navigator.</p>
+          <input id="lv-caseload" type="range" min="25" max="100" step="5" value="50" class="w-full mt-2"/>
+          <div class="flex justify-between text-[11px] text-slate-700"><span>25:1 high-touch</span><span>Baseline 80:1</span><span>100:1</span></div>
+        </div>
+        <div class="h-px bg-slate-200"></div>
+        <label class="flex items-start justify-between gap-3 cursor-pointer"><span><b class="text-sm text-slate-900 block">Multi-channel Patient Outreach</b><span class="text-xs text-slate-700">SMS + bilingual voice escalation + Tawakkalna sync (3 attempts / 72h).</span></span><input id="lv-outreach" type="checkbox" checked class="mt-1 w-5 h-5 rounded text-brand-800 shrink-0"/></label>
+        <div class="h-px bg-slate-200"></div>
+        <label class="flex items-start justify-between gap-3 cursor-pointer"><span><b class="text-sm text-slate-900 block">Centralized Cross-Facility Booking</b><span class="text-xs text-slate-700">Direct colonoscopy allocation into neighboring centers with capacity.</span></span><input id="lv-booking" type="checkbox" checked class="mt-1 w-5 h-5 rounded text-brand-800 shrink-0"/></label>
+        <div class="h-px bg-slate-200"></div>
+        <div>
+          <div class="flex justify-between items-center"><label for="lv-esc" class="text-sm font-semibold text-slate-900">Referral Auto-Escalation Window</label><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-healing-50 text-healing-700 border border-emerald-200">SLA guardrail</span></div>
+          <select id="lv-esc" class="mt-2 w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+            <option value="24">24 hours (aggressive)</option><option value="48" selected>48 hours (recommended)</option><option value="72">72 hours (standard)</option><option value="120">120 hours (delayed baseline)</option>
+          </select>
+        </div>
+        <div class="h-px bg-slate-200"></div>
+        <div>
+          <div class="flex justify-between"><label for="lv-interp" class="text-sm font-semibold text-slate-900">Interpreter Prioritization</label><b id="lv-interp-v" class="text-brand-800">60%</b></div>
+          <p class="text-xs text-slate-700 mt-0.5">Share of non-native-speaker cases routed to dual navigator-interpreter handling.</p>
+          <input id="lv-interp" type="range" min="0" max="100" step="5" value="60" class="w-full mt-2"/>
+        </div>
+      </div>
+
+      <div class="xl:col-span-8 space-y-5">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Screening Cohort</p><p class="text-2xl font-extrabold">1,000</p><p class="text-xs text-slate-700">FIT-positive triggers</p></div>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Outreach Success</p><p class="text-2xl font-extrabold"><span id="m-out">88</span>%</p><p class="text-xs text-slate-700">from 58% · <b id="m-out-d" class="text-healing-700"></b></p></div>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">Referral Handover</p><p class="text-2xl font-extrabold"><span id="m-hand">78</span>%</p><p class="text-xs text-slate-700">from 52% · <b id="m-hand-d" class="text-healing-700"></b></p></div>
+          <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4"><p class="text-[11px] uppercase font-bold tracking-wider text-slate-700">30-Day Closure</p><p class="text-2xl font-extrabold"><span id="m-clo">84.5</span>%</p><p class="text-xs text-slate-700">from 49.2% · <b id="m-clo-d" class="text-healing-700"></b></p></div>
+        </div>
+
+        <!-- Pareto chart -->
+        <div id="pareto-card" class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Equity vs. Completion — Pareto Frontier</h3>
+              <p class="text-sm text-slate-700 mt-0.5">Trade-off between Overall Completion % (Y) and Language Inequity Gap (X): disparity between native and non-native Arabic/English speakers. Move the Interpreter Prioritization lever to slide along the frontier.</p>
+            </div>
+            <div class="shrink-0 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs"><p class="uppercase font-bold tracking-wider text-slate-700 text-[10px]">Current vs baseline</p><p class="font-bold text-healing-700"><span id="pf-comp"></span> completion · <span id="pf-gap"></span> inequity</p></div>
+          </div>
+          <div class="flex flex-wrap gap-4 text-xs text-slate-800">
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-slate-500"></span>Baseline (Pure Efficiency)</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-brand-800 ring-2 ring-brand-200"></span>Current Scenario</span>
+            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-healing-600"></span>Max Equity (Interpreter Prioritized)</span>
+          </div>
+          <div class="w-full overflow-x-auto bg-slate-50 rounded-xl border border-slate-200 p-2"><svg id="pareto" viewBox="0 0 760 270" class="w-full min-w-[620px] h-auto" role="img" aria-label="Pareto frontier scatter plot of completion versus language inequity gap"></svg></div>
+          <div id="pf-takeaway" class="p-3 rounded-xl bg-healing-50 border border-emerald-200 text-sm text-slate-900"></div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
+          <div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-900">Pathway Progression Snapshot (N=1,000)</span><span class="text-xs font-semibold text-healing-700"><span id="rescued">353</span> patients rescued under current scenario</span></div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200"><div class="flex justify-between"><span class="font-medium text-slate-800">1. Clinical Contact</span><b id="s1" class="text-healing-700">88.0%</b></div><div class="h-2 bg-slate-200 rounded-full mt-1.5"><div id="s1b" class="h-2 bg-healing-600 rounded-full" style="width:88%"></div></div><p class="text-slate-700 mt-1">Baseline 58.0%</p></div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200"><div class="flex justify-between"><span class="font-medium text-slate-800">2. Specialist Referral</span><b id="s2" class="text-healing-700">78.0%</b></div><div class="h-2 bg-slate-200 rounded-full mt-1.5"><div id="s2b" class="h-2 bg-healing-600 rounded-full" style="width:78%"></div></div><p class="text-slate-700 mt-1">Baseline 52.0%</p></div>
+            <div class="bg-slate-50 rounded-lg p-3 border border-slate-200"><div class="flex justify-between"><span class="font-medium text-slate-800">3. 30-Day Completion</span><b id="s3" class="text-healing-700">84.5%</b></div><div class="h-2 bg-slate-200 rounded-full mt-1.5"><div id="s3b" class="h-2 bg-healing-600 rounded-full" style="width:84.5%"></div></div><p class="text-slate-700 mt-1">Baseline 49.2%</p></div>
+          </div>
+          <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <p class="text-sm text-slate-900"><b class="text-amber-900">Leakage:</b> baseline loses <b>508 patients (50.8%)</b> before colonoscopy. This scenario reduces that to <b id="leak">155</b>.</p>
+            <button id="sim-apply" class="px-4 py-2 rounded-lg bg-healing-600 hover:bg-healing-700 text-white text-sm font-semibold whitespace-nowrap">Apply Policy to Live Queue</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<footer class="bg-white border-t border-slate-200 py-8 px-4 sm:px-6 lg:px-8 text-xs text-slate-700">
+  <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div class="flex items-center gap-2"><div class="w-5 h-5 rounded bg-brand-800 text-white flex items-center justify-center font-bold text-[10px]">B</div><b class="text-slate-900">Baton</b><span>© 2025 All rights reserved. Clinical and synthetic coordination workspace.</span></div>
+    <div class="flex gap-6"><a href="#overview" class="hover:text-slate-950">Privacy</a><a href="#overview" class="hover:text-slate-950">Security</a><a href="#overview" class="hover:text-slate-950">Contact</a></div>
+  </div>
+</footer>
+
+<!-- Walkthrough -->
+<div id="tour-backdrop" onclick="endTour()"></div>
+<aside id="tour-card" class="bg-white rounded-2xl border border-slate-200 shadow-window p-5" role="dialog" aria-labelledby="tour-title">
+  <p class="text-[11px] uppercase font-bold tracking-wider text-brand-800" id="tour-kicker">Walkthrough</p>
+  <h2 id="tour-title" class="text-lg font-bold text-slate-950 mt-1"></h2>
+  <p id="tour-body" class="text-sm text-slate-700 mt-2 leading-relaxed"></p>
+  <div class="mt-4 flex items-center justify-between gap-2">
+    <button type="button" class="text-xs font-semibold text-slate-600 hover:text-slate-950" onclick="endTour()">Skip</button>
+    <div class="flex gap-2">
+      <button type="button" id="tour-back" class="px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-800" onclick="tourStep(-1)">Back</button>
+      <button type="button" id="tour-next" class="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-sm font-semibold" onclick="tourStep(1)">Next</button>
+    </div>
+  </div>
+  <p id="tour-progress" class="mt-3 text-[11px] text-slate-600"></p>
+</aside>
+
+<!-- Toast -->
+<div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl z-[60] translate-y-24 opacity-0 transition-all duration-300 pointer-events-none max-w-sm">
+  <p id="toast-t" class="text-sm font-bold"></p><p id="toast-b" class="text-xs text-slate-200"></p>
+</div>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(t, b) {
+  $('toast-t').textContent = t; $('toast-b').textContent = b;
+  const el = $('toast'); el.classList.remove('translate-y-24','opacity-0'); 
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('translate-y-24','opacity-0'), 3200);
+}
+
+/* ---------- router ---------- */
+const pages = ['overview','case-board','case-record','facilities','policy-simulator'];
+let tourI = -1;
+function route() {
+  let h = location.hash.replace('#','') || 'overview';
+  if (!pages.includes(h)) h = 'overview';
+  pages.forEach(p => $('page-'+p).classList.toggle('hidden', p !== h));
+  document.querySelectorAll('[data-nav]').forEach(a => {
+    if (a.dataset.nav === h) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
+  });
+  if (tourI < 0) window.scrollTo(0,0);
+  if (h === 'policy-simulator') renderSim();
+}
+window.addEventListener('hashchange', route);
+
+/* ---------- semantic pill tones ---------- */
+const TONE = {
+  red:   { pill:'bg-red-600 text-white', soft:'bg-red-50 text-red-800 border border-red-200', text:'text-red-700', dot:'bg-red-600', row:'bg-red-50/40 hover:bg-red-50' },
+  amber: { pill:'bg-amber-50 text-amber-900 border border-amber-200', soft:'bg-amber-50 text-amber-900 border border-amber-200', text:'text-amber-800', dot:'bg-amber-500', row:'hover:bg-slate-50' },
+  blue:  { pill:'bg-brand-50 text-brand-800 border border-brand-200', soft:'bg-brand-50 text-brand-800 border border-brand-200', text:'text-brand-800', dot:'bg-brand-600', row:'hover:bg-slate-50' },
+  green: { pill:'bg-healing-50 text-healing-700 border border-emerald-200', soft:'bg-healing-50 text-healing-700 border border-emerald-200', text:'text-healing-700', dot:'bg-healing-600', row:'hover:bg-slate-50' },
+  gray:  { pill:'bg-slate-100 text-slate-800 border border-slate-200', soft:'bg-slate-100 text-slate-800 border border-slate-200', text:'text-slate-800', dot:'bg-slate-500', row:'hover:bg-slate-50' }
+};
+
+/* ---------- CASE BOARD ---------- */
+const cases = [
+  { name:'Mariam Al Mansoori', id:'SCR-008741', age:'62 yrs (F)', trig:'FIT Positive (+182 μg/g)', tone:'red', badge:'Urgent • >30d breach', stage:'Outreach', stageLbl:'Outreach Blocked', stageSub:'3 failed patient calls', lead:'Khaled Al Zaabi', role:'Nurse Navigator', sla1:'34 days in queue', sla2:'SLA breach by 20d', slaTone:'red', action:'Escalate to PCP', actTone:'red' },
+  { name:'Aisha Al Zaabi', id:'SCR-009112', age:'64 yrs (F)', trig:'Post-colonoscopy handover', tone:'red', badge:'Pathology Overdue', stage:'Pathology', stageLbl:'Biopsy Handover', stageSub:'Lab report unread • 12d', lead:'Sarah Hamdan', role:'Care Coordinator', sla1:'19 days in queue', sla2:'Pathology review overdue 12d', slaTone:'red', action:'Review Lab Dossier', actTone:'redsoft' },
+  { name:'Fatima Al Hosani', id:'FIT-26771', age:'58 yrs (F)', trig:'FIT Positive (+148 μg/g)', tone:'amber', badge:'Referral Returned', stage:'GI Referral', stageLbl:'GI Referral Returned', stageSub:'Re-routing to Riverside GI', lead:'Huda Al Mansour', role:'Lead Navigator', sla1:'4 days in queue', sla2:'7d remaining under SLA', slaTone:'amber', action:'Review Handover', actTone:'link' },
+  { name:'Noura Al Suwaidi', id:'SCR-008759', age:'55 yrs (F)', trig:'FIT Positive (+96 μg/g)', tone:'blue', badge:'Active Review', stage:'Booking Pending', stageLbl:'Awaiting Slot', stageSub:'Cleveland Clinic AD', lead:'Tariq Al Dhaheri', role:'Care Coordinator', sla1:'6 days in queue', sla2:'8d remaining under SLA', slaTone:'blue', action:'Assign Slot', actTone:'soft' },
+  { name:'Rashid Al Nuaimi', id:'SCR-008736', age:'51 yrs (M)', trig:'Routine Surveillance', tone:'green', badge:'Slot Secured', stage:'Booking Pending', stageLbl:'Diagnostic Booked', stageSub:'SSMC • Oct 28, 09:30 AM', lead:'Tariq Al Dhaheri', role:'Care Coordinator', sla1:'Completed in 2 days', sla2:'Met 7-day target', slaTone:'green', action:'Send Prep Instructions', actTone:'soft' },
+  { name:'Zayed Al Kaabi', id:'SCR-008728', age:'47 yrs (M)', trig:'FIT Positive (+34 μg/g)', tone:'gray', badge:'Pending Assign', stage:'Outreach', stageLbl:'Result Issued', stageSub:'Awaiting first triage contact', lead:null, role:'', sla1:'1 day in queue', sla2:'13d remaining under SLA', slaTone:'gray', action:'Assign Destination', actTone:'soft' },
+  { name:'Omar Al Falasi', id:'SCR-008602', age:'60 yrs (M)', trig:'Pathology verified', tone:'green', badge:'Closed', stage:'Closed', stageLbl:'3-Year Surveillance Recall', stageSub:'Recall set · loop closed', lead:'Sarah Hamdan', role:'Care Coordinator', sla1:'Closed in 16 days', sla2:'Met 30-day target', slaTone:'green', action:'View Audit', actTone:'soft' }
+];
+const stages = ['All Stages','Outreach','GI Referral','Booking Pending','Pathology','Closed'];
+let stageSel = 'All Stages', urgentOnly = false;
+function actBtn(c) {
+  const base = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ';
+  const map = { red: 'bg-red-600 text-white hover:bg-red-700', redsoft:'bg-red-50 text-red-800 border border-red-200 hover:bg-red-600 hover:text-white', link:'bg-slate-900 text-white hover:bg-brand-800', soft:'bg-slate-100 text-slate-900 hover:bg-slate-200' };
+  const onclick = c.id === 'FIT-26771' ? "location.hash='#case-record'" : `toast('${c.action}','${c.name} · ${c.id}')`;
+  return `<button class="${base}${map[c.actTone]}" onclick="${onclick}">${c.action}</button>`;
+}
+function renderBoard() {
+  const q = $('board-search').value.trim().toLowerCase();
+  const rows = cases.filter(c => {
+    if (stageSel !== 'All Stages' && c.stage !== stageSel) return false;
+    if (urgentOnly && c.tone !== 'red') return false;
+    if (q && q !== 'urgent' && !(c.name + c.id).toLowerCase().includes(q)) return false;
+    if (q === 'urgent' && c.tone !== 'red') return false;
+    return true;
+  });
+  $('board-body').innerHTML = rows.map(c => {
+    const t = TONE[c.tone], s = TONE[c.slaTone];
+    const initials = c.lead ? c.lead.split(' ').map(w=>w[0]).slice(0,2).join('') : '?';
+    return `<tr class="${t.row} transition-colors">
+      <td class="py-2 px-5"><div class="flex items-start gap-3"><div class="w-8 h-8 rounded-full ${c.tone==='red'?'bg-red-100 text-red-700':c.tone==='amber'?'bg-amber-100 text-amber-800':c.tone==='green'?'bg-healing-100 text-healing-700':c.tone==='blue'?'bg-brand-100 text-brand-800':'bg-slate-200 text-slate-800'} flex items-center justify-center text-xs font-bold shrink-0">${c.name[0]}</div>
+        <div><div class="flex flex-wrap items-center gap-2"><span class="font-bold text-slate-900">${c.name}</span><span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${t.pill}">${c.badge}</span></div>
+        <div class="text-xs text-slate-700 mt-0.5"><span class="font-mono font-semibold text-brand-800">${c.id}</span> · ${c.age} · <span class="${c.tone==='red'?'text-red-700 font-semibold':'font-medium text-slate-800'}">${c.trig}</span></div></div></div></td>
+      <td class="py-2 px-3"><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full ${t.dot}"></span><span class="text-xs font-bold ${t.text}">${c.stageLbl}</span></div><div class="text-xs text-slate-700">${c.stageSub}</div></td>
+      <td class="py-2 px-3"><div class="flex items-center gap-2"><div class="w-7 h-7 rounded-full ${c.lead?'bg-slate-100 text-brand-800':'border border-dashed border-slate-400 text-slate-700'} flex items-center justify-center text-[11px] font-bold">${initials}</div><div class="leading-tight"><div class="text-xs font-semibold ${c.lead?'text-slate-900':'italic text-slate-800'}">${c.lead||'Unassigned'}</div><div class="text-[11px] text-slate-700">${c.lead?c.role:'<button class="text-brand-800 font-semibold hover:underline" onclick="toast(\'Auto-allocated\',\'Assigned to next available navigator.\')">Auto-allocate</button>'}</div></div></div></td>
+      <td class="py-2 px-3"><div class="text-xs font-bold ${s.text}">${c.sla1}</div><div class="text-[11px] font-medium ${s.text}">${c.sla2}</div></td>
+      <td class="py-2 px-5 text-right">${actBtn(c)}</td></tr>`;
+  }).join('') || `<tr><td colspan="5" class="p-8 text-center text-sm text-slate-700">No cases match the current filters.</td></tr>`;
+  $('board-count').textContent = `Displaying ${rows.length} of 328`;
+  $('board-foot').textContent = `Showing 1 to ${rows.length} of 328 active cases`;
+}
+function renderTabs() {
+  $('stage-tabs').innerHTML = stages.map(s => `<button type="button" data-stage="${s}" class="px-3 py-1.5 rounded-md text-xs ${s===stageSel?'font-bold bg-white text-brand-800 shadow-sm':'font-medium text-slate-800 hover:text-slate-950'}">${s}</button>`).join('');
+  document.querySelectorAll('[data-stage]').forEach(b => b.onclick = () => { stageSel = b.dataset.stage; urgentOnly = false; renderTabs(); renderBoard(); });
+}
+function isolateUrgent() { urgentOnly = true; stageSel = 'All Stages'; $('board-search').value=''; renderTabs(); renderBoard(); toast('Filtered','Showing critical SLA breaches only.'); }
+$('board-search').addEventListener('input', () => { urgentOnly = false; renderBoard(); });
+
+/* ---------- CASE RECORD ---------- */
+function checklistReady() {
+  return [...document.querySelectorAll('.readiness')].every(b => b.checked);
+}
+function updateReadiness() {
+  const boxes = [...document.querySelectorAll('.readiness')], n = boxes.filter(b => b.checked).length;
+  const el = $('check-count'); el.textContent = `${n} of 3 criteria met`;
+  el.className = 'px-2.5 py-1 rounded-full text-xs font-bold border ' + (n === 3 ? 'bg-healing-50 text-healing-700 border-emerald-200' : 'bg-amber-50 text-amber-900 border-amber-200');
+}
+function tryDispatch(dest) {
+  if (!checklistReady()) {
+    toast('Referral blocked', 'Clear eGFR labs, blood-thinner hold plan, and ASA sedation risk before sending. This stops the 16 rejected-referral leak at source.');
+    location.hash = '#case-record';
+    document.getElementById('readiness-sbar').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  toast('Referral dispatched', 'Priority referral sent to ' + dest + ' with barrier-matched routing.');
+}
+document.querySelectorAll('.readiness').forEach(b => b.addEventListener('change', updateReadiness));
+
+$('sbar-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const v = $('sbar-input').value.trim(); if (!v) return;
+  const d = document.createElement('div');
+  d.className = 'p-3 rounded-xl bg-white border border-slate-200 shadow-sm';
+  const t = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  d.innerHTML = `<div class="flex justify-between text-xs mb-1"><b class="text-brand-800">Dr. Layla Haddad · PCP (Al Bateen Clinic)</b><span class="text-slate-700">Today · ${t}</span></div><p class="text-sm text-slate-900"></p>`;
+  d.querySelector('p').textContent = v;
+  $('sbar-thread').appendChild(d); $('sbar-input').value = '';
+  $('sbar-thread').scrollTop = $('sbar-thread').scrollHeight;
+});
+
+document.querySelectorAll('[data-tag]').forEach(b => b.addEventListener('click', () => {
+  const box = $('note-box'); box.value += (box.value ? '\n' : '') + b.dataset.tag + ' — ' + new Date().toLocaleDateString();
+}));
+
+// Hard lock logic
+let closed = false;
+function updateLock() {
+  if (closed) return;
+  const file = $('biopsy-file').files.length > 0;
+  const dispo = document.querySelector('input[name="dispo"]:checked');
+  const btn = $('close-btn'), st = $('lock-status');
+  const missing = [];
+  if (!file) missing.push('biopsy result upload'); if (!dispo) missing.push('disposition selection');
+  if (missing.length === 0) {
+    btn.disabled = false;
+    btn.className = 'w-full px-4 py-2.5 rounded-lg bg-healing-600 hover:bg-healing-700 text-white text-sm font-semibold flex items-center justify-center gap-2';
+    btn.textContent = '✓ Close Case — ' + dispo.value;
+    st.textContent = 'All requirements met. Closing will be recorded in the audit trail.';
+  } else {
+    btn.disabled = true;
+    btn.className = 'w-full px-4 py-2.5 rounded-lg bg-slate-200 text-slate-700 border border-slate-300 text-sm font-semibold cursor-not-allowed flex items-center justify-center gap-2';
+    btn.textContent = '🔒 Close Case (Requires Biopsy Result + Disposition)';
+    st.textContent = 'Missing: ' + missing.join(' · ');
+  }
+}
+$('biopsy-file').addEventListener('change', updateLock);
+document.querySelectorAll('input[name="dispo"]').forEach(r => r.addEventListener('change', updateLock));
+$('close-btn').addEventListener('click', () => {
+  const dispo = document.querySelector('input[name="dispo"]:checked').value;
+  closed = true; $('close-btn').disabled = true;
+  $('close-btn').textContent = '✓ Case closed — ' + dispo;
+  $('lock-status').textContent = 'Closure recorded with verified histology (demo).';
+  toast('Case closed', dispo + ' recorded in audit trail.');
+});
+
+/* ---------- FACILITIES ---------- */
+const facs = [
+  { n:'Central Digestive Clinic', loc:'Al Danah District · Tier 1 Endoscopy Unit', w:'8.0 wks', d:'56 days avg', q:'71 cases', cap:'Capacity: 142%', st:[12,34,10], tone:'red', status:'Exceeds SLA by 26 days' },
+  { n:'Lakeside Endoscopy', loc:'Corniche West · Ambulatory Care Center', w:'6.0 wks', d:'42 days avg', q:'58 cases', cap:'Capacity: 98%', st:[6,28,8], tone:'red', status:'Exceeds SLA by 12 days' },
+  { n:'Riverside GI Centre', loc:'Khalifa City · Outpatient Surgical Hub', w:'4.0 wks', d:'28 days avg', q:'36 cases', cap:'Capacity: 74%', st:[3,20,5], tone:'blue', status:'Normal throughput' },
+  { n:'Northview Hospital', loc:'Al Reem Island · Regional Academic Hospital', w:'3.0 wks', d:'21 days avg', q:'22 cases', cap:'Available capacity: 48%', st:[2,15,4], tone:'green', status:'SLA target met' }
+];
+$('fac-body').innerHTML = facs.map(f => {
+  const t = TONE[f.tone], tot = f.st.reduce((a,b)=>a+b,0);
+  const pct = f.st.map(x => (x/tot*100).toFixed(0));
+  return `<tr class="hover:bg-slate-50"><td class="py-3 px-3"><div class="font-bold text-slate-900 flex items-center gap-1.5">${f.n}${f.tone==='red'?'<span class="w-2 h-2 rounded-full bg-red-600"></span>':''}</div><div class="text-xs text-slate-700">${f.loc}</div></td>
+  <td class="py-3 px-3"><div class="text-lg font-extrabold ${t.text==='text-brand-800'?'text-slate-900':t.text}">${f.w}</div><div class="text-xs text-slate-700">${f.d}</div></td>
+  <td class="py-3 px-3"><div class="font-bold text-slate-900">${f.q}</div><div class="text-xs text-slate-700">${f.cap}</div></td>
+  <td class="py-3 px-3 min-w-[200px]"><div class="flex justify-between text-[11px] text-slate-700"><span>Ref ${f.st[0]}d</span><span>Book ${f.st[1]}d</span><span>Rpt ${f.st[2]}d</span></div><div class="flex h-2 rounded-full overflow-hidden bg-slate-100 mt-1"><div class="bg-brand-800" style="width:${pct[0]}%"></div><div class="${f.tone==='red'?'bg-red-600':'bg-brand-500'}" style="width:${pct[1]}%"></div><div class="bg-slate-400" style="width:${pct[2]}%"></div></div></td>
+  <td class="py-3 px-3 text-right"><span class="inline-block px-2.5 py-1 rounded-full text-[11px] font-bold ${t.pill}">${f.status}</span></td></tr>`;
+}).join('');
+const drivers = [['Limited booking slots',34,'Scope room capacity limited during peak morning cohorts'],['Additional clinical info required',21,'Missing anticoagulation status or prior resection notes'],['Report review backlog',18,'Endoscopist sign-off latency exceeding 48 hr cycle'],['Patient rescheduling',13,'Bowel prep apprehension or work conflicts'],['Incomplete referral details',8,'Incorrect clinic ID routing from referring centers']];
+$('drivers').innerHTML = drivers.map((d,i) => `<div><div class="flex justify-between text-sm"><span class="font-semibold text-slate-900"><span class="text-xs text-slate-700 mr-1.5">0${i+1}</span>${d[0]}</span><b class="text-brand-800">${d[1]}%</b></div><div class="h-2 bg-slate-100 rounded-full mt-1"><div class="h-2 bg-brand-700 rounded-full" style="width:${d[1]}%"></div></div><p class="text-xs text-slate-700 mt-0.5">${d[2]}</p></div>`).join('');
+$('rb-slider').addEventListener('input', e => { const v = +e.target.value; $('rb-display').textContent = `${v}% (${Math.round(v*0.71)} referrals)`; });
+$('rb-apply').addEventListener('click', () => toast('Diversion applied', `${Math.round($('rb-slider').value*0.71)} referrals routed to Northview Hospital.`));
+
+/* ---------- POLICY SIMULATOR ---------- */
+const BASE = { c: 49.2, g: 31.4 };
+function model(i) {
+  const cl = +$('lv-caseload').value, o = $('lv-outreach').checked, b = $('lv-booking').checked, e = +$('lv-esc').value;
+  const escEff = { 24:1, 48:0, 72:-2, 120:-6 }[e];
+  let c = 84.5 + (o?0:-12) + (b?0:-10) + (50-cl)*0.12 + escEff + (i-60)*0.09;
+  let g = 11.3 + (o?0:3) + (b?0:2) - (i-60)*0.23;
+  return { c: Math.max(40, Math.min(99, c)), g: Math.max(0, Math.min(34, g)) };
+}
+const X = g => 70 + (35 - g) / 35 * 620, Y = c => 210 - (c - 40) / 60 * 180;
+function renderSim() {
+  const i = +$('lv-interp').value, cur = model(i), max = model(100);
+  $('lv-caseload-v').textContent = $('lv-caseload').value + ' : 1';
+  $('lv-interp-v').textContent = i + '%';
+  const pts = []; for (let k = 0; k <= 100; k += 5) { const m = model(k); pts.push([X(m.g), Y(m.c)]); }
+  const path = pts.map((p,k) => (k?'L':'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  let s = '';
+  [100,85,70,55,40].forEach(v => { s += `<line x1="70" x2="730" y1="${Y(v)}" y2="${Y(v)}" stroke="#cbd5e1" stroke-dasharray="4 4"/><text x="62" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="#334155" font-weight="600">${v}%</text>`; });
+  [35,25,18,10,3,0].forEach(v => { s += `<text x="${X(v)}" y="228" text-anchor="middle" font-size="11" fill="#334155" font-weight="600">${v===0?'0% (parity)':v+'%'}</text>`; });
+  s += `<line x1="70" x2="70" y1="20" y2="210" stroke="#475569" stroke-width="1.5"/><line x1="70" x2="730" y1="210" y2="210" stroke="#475569" stroke-width="1.5"/>`;
+  s += `<text transform="rotate(-90 18,115)" x="18" y="115" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a">Overall Completion Rate (%)</text>`;
+  s += `<text x="400" y="255" text-anchor="middle" font-size="11" font-weight="700" fill="#0f172a">Language Inequity Gap (% disparity, native vs non-native speakers) → toward parity</text>`;
+  s += `<path d="${path} L ${pts[pts.length-1][0]} 210 L ${pts[0][0]} 210 Z" fill="#10b981" fill-opacity="0.10"/>`;
+  s += `<path d="${path}" fill="none" stroke="#059669" stroke-width="3" stroke-linecap="round"/>`;
+  // baseline
+  const bx = X(BASE.g), by = Y(BASE.c);
+  s += `<line x1="${bx}" x2="${bx}" y1="${by}" y2="210" stroke="#64748b" stroke-dasharray="3 3"/><circle cx="${bx}" cy="${by}" r="6" fill="#64748b" stroke="#fff" stroke-width="2"/>`;
+  s += box(bx+10, by-62, 178, 44, '#ffffff', '#cbd5e1', [['Baseline (Pure Efficiency)','#334155',700],[`Completion: ${BASE.c.toFixed(1)}%`,'#334155',500],[`Inequity gap: ${BASE.g.toFixed(1)}% (severe)`,'#334155',600]]);
+  // max equity
+  const mx = X(max.g), my = Y(max.c);
+  s += `<line x1="${mx}" x2="${mx}" y1="${my}" y2="210" stroke="#059669" stroke-dasharray="3 3"/><circle cx="${mx}" cy="${my}" r="6" fill="#059669" stroke="#fff" stroke-width="2"/>`;
+  s += box(Math.min(mx-150, 565), my+26, 190, 44, '#ffffff', '#6ee7b7', [['Max Equity (Interpreter Prioritized)','#047857',700],[`Completion: ${max.c.toFixed(1)}%`,'#334155',500],[`Inequity gap: ${max.g.toFixed(1)}%`,'#047857',600]]);
+  // current
+  const cx = X(cur.g), cy = Y(cur.c);
+  s += `<line x1="${cx}" x2="${cx}" y1="${cy}" y2="210" stroke="#1e40af" stroke-dasharray="3 3"/><circle cx="${cx}" cy="${cy}" r="12" fill="none" stroke="#1e40af" stroke-opacity=".4" stroke-width="2"/><circle cx="${cx}" cy="${cy}" r="6" fill="#1e40af" stroke="#fff" stroke-width="2"/>`;
+  s += box(Math.max(76, Math.min(cx-90, 560)), Math.max(4, cy-70), 190, 46, '#1e40af', '#1e40af', [['Current Scenario','#ffffff',700],[`Completion: ${cur.c.toFixed(1)}% (+${(cur.c-BASE.c).toFixed(1)})`,'#dbeafe',500],[`Inequity gap: ${cur.g.toFixed(1)}% (−${(BASE.g-cur.g).toFixed(1)})`,'#a7f3d0',600]]);
+  $('pareto').innerHTML = s;
+
+  $('pf-comp').textContent = (cur.c-BASE.c>=0?'+':'') + (cur.c-BASE.c).toFixed(1) + '%';
+  $('pf-gap').textContent = '−' + (BASE.g-cur.g).toFixed(1) + '%';
+  $('pf-takeaway').innerHTML = `<b>Takeaway:</b> Interpreter Prioritization slides the Department of Health along this frontier. At full dual navigator-interpreter routing the language inequity gap falls from <b class="text-slate-700">${BASE.g}%</b> to <b class="text-healing-700">${max.g.toFixed(1)}%</b> while overall completion still rises from <b>${BASE.c}%</b> to <b class="text-healing-700">${max.c.toFixed(1)}%</b> — equity does not trade away throughput in this model.`;
+
+  const o = $('lv-outreach').checked, b = $('lv-booking').checked, cl = +$('lv-caseload').value;
+  const out = Math.max(40, Math.min(97, (o?88:58) - (cl-50)*0.1)), hand = b ? 78 : 52;
+  $('m-out').textContent = out.toFixed(0); $('m-hand').textContent = hand; $('m-clo').textContent = cur.c.toFixed(1);
+  $('m-out-d').textContent = (out-58>=0?'+':'') + (out-58).toFixed(0) + ' pts';
+  $('m-hand-d').textContent = (hand-52>=0?'+':'') + (hand-52) + ' pts';
+  $('m-clo-d').textContent = (cur.c-49.2>=0?'+':'') + (cur.c-49.2).toFixed(1) + ' pts';
+  $('s1').textContent = out.toFixed(1)+'%'; $('s1b').style.width = out+'%';
+  $('s2').textContent = hand.toFixed(1)+'%'; $('s2b').style.width = hand+'%';
+  $('s3').textContent = cur.c.toFixed(1)+'%'; $('s3b').style.width = cur.c+'%';
+  $('rescued').textContent = Math.max(0, Math.round((cur.c-49.2)*10));
+  $('leak').textContent = Math.round(1000 - cur.c*10);
+}
+function box(x, y, w, h, fill, stroke, lines) {
+  let r = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" fill="${fill}" stroke="${stroke}"/>`;
+  lines.forEach((l, k) => r += `<text x="${x+8}" y="${y+14+k*12}" font-size="${k?10:11}" font-weight="${l[2]}" fill="${l[1]}">${l[0]}</text>`);
+  return r;
+}
+['lv-caseload','lv-outreach','lv-booking','lv-esc','lv-interp'].forEach(id => $(id).addEventListener('input', renderSim));
+$('sim-run').addEventListener('click', () => { renderSim(); toast('Simulation computed', 'Re-ran 1,000 synthetic patient pathways.'); });
+$('sim-reset').addEventListener('click', () => {
+  $('lv-caseload').value = 80; $('lv-outreach').checked = false; $('lv-booking').checked = false; $('lv-esc').value = '120'; $('lv-interp').value = 0;
+  renderSim(); toast('Reset to baseline', 'Levers restored to regional baseline defaults.');
+});
+$('sim-save').addEventListener('click', () => toast('Scenario saved', 'Saved to departmental workspace.'));
+$('sim-apply').addEventListener('click', () => toast('Policy dispatched', 'Rules apply on next scheduler batch (demo).'));
+
+/* ---------- walkthrough ---------- */
+const TOUR = [
+  { page:'overview', title:'Baton walkthrough', kicker:'1 of 8 · Overview', body:'This demo follows one FIT-positive case from the worklist through clinical safety, cultural routing, network bottlenecks, and a policy Pareto chart. Use Next to move through the four product views.' },
+  { page:'case-record', sel:'#readiness-panel', title:'Pre-referral readiness checklist', kicker:'2 of 8 · Clinical Safety', body:'eGFR labs, blood-thinner hold plan, and ASA sedation risk must all be ticked before a referral can leave primary care. Tick the remaining ASA item — dispatch stays blocked until then, which is how the 16 rejected referrals are stopped at source.' },
+  { page:'case-record', sel:'#sbar-panel', title:'Async SBAR e-consult', kicker:'3 of 8 · Clinical Safety', body:'Primary care and GI triage resolve cardiac/sedation questions on a tracked thread instead of bouncing the referral. Type a reply here; it is logged to the case record.' },
+  { page:'case-record', sel:'#lock-banner', title:'Pathology hard lock', kicker:'4 of 8 · Clinical Safety', body:'Step 10 cannot close after colonoscopy until a biopsy result is uploaded and a disposition is chosen: Oncology MDT or 3-year recall. The Close Case button stays disabled until both are present.' },
+  { page:'case-record', sel:'#alt-facilities', title:'Capacity-aware + modesty routing', kicker:'5 of 8 · Smart Routing', body:'Effective wait uses live queue depth, not the brochure wait time. Central Digestive is 8.0 weeks published and 11.2 weeks effective. Fatima requested a female specialist, so Riverside (female endoscopist Friday) ranks above a faster male-staffed slot; Northview is the overflow valve.' },
+  { page:'facilities', sel:'#bottleneck-radar', title:'Facility bottleneck radar', kicker:'6 of 8 · Systemic Visibility', body:'Each hospital is split into Referral Intake vs Booking vs Report Review. Managers see where a site is stalling — Central Digestive is booking-bound (34 of 56 days), not intake-bound.' },
+  { page:'facilities', sel:'#rebalance-card', title:'Interactive traffic rebalancing', kicker:'7 of 8 · Systemic Visibility', body:'Drag the quota slider to divert routine FIT-positive volume from saturated Central Digestive Clinic to under-utilized Northview Hospital, then Apply Diversion. The recommendation starts at 25 referrals (35%).' },
+  { page:'policy-simulator', sel:'#pareto-card', title:'Equity vs completion Pareto', kicker:'8 of 8 · Decision Science', body:'Move Interpreter Prioritization. The frontier shows the language inequity gap falling from 31.4% (baseline) toward 2.1% at full dual-navigator routing, while 30-day completion still rises above the 49.2% baseline. Equity is not a throughput sacrifice in this model.' }
+];
+function startTour() {
+  tourI = 0;
+  $('tour-backdrop').style.display = 'block';
+  $('tour-card').style.display = 'block';
+  showTour();
+}
+function endTour() {
+  tourI = -1;
+  $('tour-backdrop').style.display = 'none';
+  $('tour-card').style.display = 'none';
+  document.querySelectorAll('.tour-spot').forEach(el => el.classList.remove('tour-spot'));
+}
+function tourStep(d) {
+  const n = tourI + d;
+  if (n < 0) return;
+  if (n >= TOUR.length) { endTour(); toast('Walkthrough complete', 'You can replay it from Start walkthrough.'); return; }
+  tourI = n; showTour();
+}
+function showTour() {
+  const step = TOUR[tourI];
+  location.hash = '#' + step.page;
+  document.querySelectorAll('.tour-spot').forEach(el => el.classList.remove('tour-spot'));
+  $('tour-kicker').textContent = step.kicker;
+  $('tour-title').textContent = step.title;
+  $('tour-body').textContent = step.body;
+  $('tour-progress').textContent = 'Step ' + (tourI + 1) + ' of ' + TOUR.length;
+  $('tour-back').disabled = tourI === 0;
+  $('tour-next').textContent = tourI === TOUR.length - 1 ? 'Finish' : 'Next';
+  requestAnimationFrame(() => {
+    if (step.sel) {
+      const el = document.querySelector(step.sel);
+      if (el) {
+        el.classList.add('tour-spot');
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+}
+$('tour-start').addEventListener('click', startTour);
+
+/* ---------- init ---------- */
+renderTabs(); renderBoard(); updateReadiness(); renderSim(); route();
+</script>
+</body>
+</html>
